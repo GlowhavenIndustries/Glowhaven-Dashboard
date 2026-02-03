@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Apex Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="app" data-theme="dark">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-icon">A</div>
+          <div>
+            <h1>Apex</h1>
+            <p>Control Center</p>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-item active">Overview</button>
+          <button class="nav-item">Automations</button>
+          <button class="nav-item">Workflow</button>
+          <button class="nav-item">Devices</button>
+          <button class="nav-item">Analytics</button>
+          <button class="nav-item">Settings</button>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="team-card">
+            <p class="eyebrow">Team</p>
+            <h3>Apex Prime</h3>
+            <p class="muted">18 members · 7 regions</p>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Good morning</p>
+            <h2>Orchestrate your ecosystem</h2>
+          </div>
+          <div class="topbar-actions">
+            <div class="search">
+              <span>⌕</span>
+              <input type="text" placeholder="Search modules, automations, data" />
+            </div>
+            <button class="pill" id="themeToggle">Toggle theme</button>
+            <button class="pill primary">Launch workflow</button>
+          </div>
+        </header>
+
+        <section class="hero">
+          <div class="hero-card">
+            <div class="hero-text">
+              <p class="eyebrow">System pulse</p>
+              <h3>All critical services are healthy</h3>
+              <p class="muted">
+                Apex is streaming real-time health telemetry from your most important stacks.
+              </p>
+              <div class="hero-actions">
+                <button class="pill primary">View status map</button>
+                <button class="pill ghost">Download report</button>
+              </div>
+            </div>
+            <div class="hero-metrics">
+              <div>
+                <p class="label">Availability</p>
+                <h4>99.98%</h4>
+              </div>
+              <div>
+                <p class="label">Latency</p>
+                <h4>218ms</h4>
+              </div>
+              <div>
+                <p class="label">Alerts</p>
+                <h4>2 open</h4>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <article class="card">
+            <div class="card-header">
+              <h4>Realtime monitoring</h4>
+              <span class="status positive">Stable</span>
+            </div>
+            <p class="muted">Infrastructure across 14 regions with predictive uptime alerts.</p>
+            <div class="mini-chart" id="uptimeChart"></div>
+            <div class="card-footer">
+              <div>
+                <p class="label">Incidents</p>
+                <strong>0</strong>
+              </div>
+              <div>
+                <p class="label">Performance</p>
+                <strong>+6.4%</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-header">
+              <h4>Productivity flow</h4>
+              <span class="status neutral">On track</span>
+            </div>
+            <div class="timeline">
+              <div>
+                <p class="label">08:30</p>
+                <p>Global sync with Tokyo ops</p>
+              </div>
+              <div>
+                <p class="label">10:00</p>
+                <p>Release readiness review</p>
+              </div>
+              <div>
+                <p class="label">13:30</p>
+                <p>Partner integration rollout</p>
+              </div>
+            </div>
+            <button class="pill ghost">Open calendar</button>
+          </article>
+
+          <article class="card">
+            <div class="card-header">
+              <h4>Weather intelligence</h4>
+              <span class="status neutral">San Francisco</span>
+            </div>
+            <div class="weather">
+              <div>
+                <h3 id="temperature">72°</h3>
+                <p class="muted" id="conditions">Clear · 12% humidity</p>
+              </div>
+              <div class="weather-grid">
+                <div>
+                  <p class="label">Wind</p>
+                  <strong id="wind">6 mph</strong>
+                </div>
+                <div>
+                  <p class="label">AQI</p>
+                  <strong id="aqi">42</strong>
+                </div>
+                <div>
+                  <p class="label">UV</p>
+                  <strong id="uv">Low</strong>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-header">
+              <h4>Pipeline velocity</h4>
+              <span class="status positive">+12% this week</span>
+            </div>
+            <div class="pipeline">
+              <div>
+                <p class="label">Deployments</p>
+                <strong>48</strong>
+              </div>
+              <div>
+                <p class="label">Pending approvals</p>
+                <strong>6</strong>
+              </div>
+              <div>
+                <p class="label">Avg. lead time</p>
+                <strong>4h 32m</strong>
+              </div>
+            </div>
+            <button class="pill ghost">Open pipelines</button>
+          </article>
+
+          <article class="card wide">
+            <div class="card-header">
+              <h4>Device ecosystem</h4>
+              <span class="status neutral">128 devices</span>
+            </div>
+            <div class="device-grid">
+              <div class="device">
+                <p class="label">Edge Nodes</p>
+                <strong>46</strong>
+                <span class="status positive">All green</span>
+              </div>
+              <div class="device">
+                <p class="label">Workstations</p>
+                <strong>62</strong>
+                <span class="status neutral">2 require updates</span>
+              </div>
+              <div class="device">
+                <p class="label">IoT Sensors</p>
+                <strong>20</strong>
+                <span class="status warning">1 offline</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card wide">
+            <div class="card-header">
+              <h4>Mission priorities</h4>
+              <span class="status neutral">Q3 objectives</span>
+            </div>
+            <ul class="priority-list">
+              <li>
+                <div>
+                  <h5>Launch secure ops mesh</h5>
+                  <p class="muted">Federate data pipelines with zero-trust routing.</p>
+                </div>
+                <button class="pill ghost">Track</button>
+              </li>
+              <li>
+                <div>
+                  <h5>Elevate partner experience</h5>
+                  <p class="muted">Unified portal for project signals and onboarding.</p>
+                </div>
+                <button class="pill ghost">Track</button>
+              </li>
+              <li>
+                <div>
+                  <h5>Optimize energy footprint</h5>
+                  <p class="muted">AI-less anomaly detection with smart baselines.</p>
+                </div>
+                <button class="pill ghost">Track</button>
+              </li>
+            </ul>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
