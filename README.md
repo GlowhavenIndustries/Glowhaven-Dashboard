@@ -4,17 +4,27 @@
 
 Apex Dashboard is a modular, fully customizable web dashboard for connecting and monitoring the digital tools, services, and devices that power your personal or professional ecosystem. It is designed from the ground up to emphasize performance, privacy, and flexibility—no AI required.
 
-## Concept
+## Getting Started
 
-Think “Control Center for Everything,” but built to be fast, local-first, and fully under your control. Apex provides a widget-based architecture that lets you assemble a personalized command center for everything from calendars and weather to server status and IoT telemetry.
+Open `index.html` directly in a browser or serve the folder locally:
 
-## Key Features
+```bash
+python -m http.server 5173
+```
+
+Then visit `http://localhost:5173`.
+
+## Experience Highlights
 
 - **Widget-based architecture** – Add, remove, resize, and rearrange modules like calendars, weather, server status, GitHub projects, or IoT device monitors.
 - **Zero-compromise design** – Keep data local or encrypted with no forced logins and no cloud dependency.
 - **Theming system** – Dark/light mode, futuristic neon styles, and minimalist layouts.
 - **Plugin-ready** – Drop in new features with an extensible module system.
 - **Real-time updates** – Live monitoring via WebSockets or server-sent events.
+
+## Concept
+
+Think “Control Center for Everything,” but built to be fast, local-first, and fully under your control. Apex provides a widget-based architecture that lets you assemble a personalized command center for everything from calendars and weather to server status and IoT telemetry.
 
 ## Why It Fits Apex Branding
 
@@ -24,7 +34,7 @@ Think “Control Center for Everything,” but built to be fast, local-first, an
 
 ## Tech Stack (AI-friendly)
 
-- **Frontend:** React + TailwindCSS
+- **Frontend:** HTML + CSS + JavaScript
 - **Backend (optional):** Node.js + Express
 - **Storage:** SQLite or local JSON config
 - **Real-time:** WebSockets
