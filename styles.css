@@ -468,6 +468,59 @@ body {
   flex-wrap: wrap;
 }
 
+.onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.onboarding-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--shadow);
+}
+
+.onboarding-card h4 {
+  font-size: 16px;
+}
+
+.status-pill {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: var(--surface-alt);
+}
+
+.status-pill.positive {
+  color: var(--positive);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.status-pill.warning {
+  color: var(--warning);
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.status-pill.neutral {
+  color: var(--muted);
+  background: var(--surface-alt);
+}
+
 .widget-area {
   display: flex;
   flex-direction: column;
@@ -637,6 +690,10 @@ body {
   .widget-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
+
+  .onboarding-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -677,5 +734,9 @@ body {
 
   .widget-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .onboarding-grid {
+    grid-template-columns: 1fr;
   }
 }
