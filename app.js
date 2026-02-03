@@ -15,21 +15,22 @@ const statusDashboard = document.getElementById('statusDashboard');
 const statusRole = document.getElementById('statusRole');
 const statusEdit = document.getElementById('statusEdit');
 const statusSecurity = document.getElementById('statusSecurity');
+const runtimeStatus = document.getElementById('runtimeStatus');
 
-const STORAGE_KEY = 'apex-dashboard-config';
-const KEY_STORAGE = 'apex-dashboard-key';
+const STORAGE_KEY = 'glowhaven-dashboard-config';
+const KEY_STORAGE = 'glowhaven-dashboard-key';
 
 const widgetRegistry = {};
 const dataSourceRegistry = {};
 
 const defaultConfig = {
-  encryptionEnabled: false,
+  encryptionEnabled: true,
   dataSources: {
     calendar: {
       provider: 'github',
       refreshMs: 300000,
       github: {
-        org: 'openai',
+        org: 'github',
       },
       google: {
         apiKey: '',
@@ -69,7 +70,7 @@ const defaultConfig = {
       refreshMs: 60000,
       token: '',
       repositories: [
-        { owner: 'openai', repo: 'openai-cookbook' },
+        { owner: 'github', repo: 'docs' },
         { owner: 'vercel', repo: 'next.js' },
       ],
     },
@@ -77,7 +78,12 @@ const defaultConfig = {
   realtime: {
     enabled: true,
     sseUrl: '',
+    websocketUrl: '',
     refreshMs: 5000,
+  },
+  remoteBackup: {
+    enabled: false,
+    endpoint: '',
   },
   dashboards: {
     personal: {
@@ -95,21 +101,22 @@ const defaultConfig = {
         {
           id: 'weather-1',
           type: 'weather',
-          title: 'Weather Intelligence',
+          title: 'Climate Intelligence',
           position: { x: 5, y: 1, w: 4, h: 2 },
           role: 'viewer',
         },
         {
           id: 'server-1',
           type: 'serverStatus',
-          title: 'Server Status',
+          title: 'Global Systems Monitor',
           position: { x: 9, y: 1, w: 4, h: 2 },
           role: 'admin',
+          priority: 'high',
         },
         {
           id: 'github-1',
           type: 'githubProjects',
-          title: 'GitHub Projects',
+          title: 'Pipeline Oversight',
           position: { x: 1, y: 3, w: 6, h: 3 },
           role: 'viewer',
         },
@@ -133,6 +140,7 @@ const defaultConfig = {
           title: 'Fleet Telemetry',
           position: { x: 6, y: 1, w: 7, h: 2 },
           role: 'admin',
+          priority: 'high',
         },
         {
           id: 'github-team',
@@ -211,9 +219,30 @@ class StorageManager {
     if (config.encryptionEnabled) {
       const payload = await CryptoManager.encrypt(JSON.stringify(config));
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ encrypted: true, payload }));
+      await this.persistRemoteBackup(config, payload);
       return;
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    await this.persistRemoteBackup(config, config);
+  }
+
+  async persistRemoteBackup(config, payload) {
+    if (!config.remoteBackup?.enabled || !config.remoteBackup?.endpoint) {
+      return;
+    }
+    try {
+      await fetch(config.remoteBackup.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          encrypted: config.encryptionEnabled,
+          payload,
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+    } catch (error) {
+      // silently ignore backup failures
+    }
   }
 }
 
@@ -229,6 +258,9 @@ class Widget {
     const card = document.createElement('article');
     card.className = 'widget-card';
     card.dataset.widgetId = this.config.id;
+    if (this.config.priority === 'high') {
+      card.classList.add('priority-high');
+    }
 
     const header = document.createElement('div');
     header.className = 'widget-header';
@@ -426,7 +458,8 @@ class Dashboard {
   syncControls() {
     dashboardSelect.value = this.config.activeDashboardId;
     roleSelect.value = this.config.activeRole;
-    encryptionToggle.textContent = this.config.encryptionEnabled ? 'Enabled' : 'Disabled';
+    encryptionToggle.textContent = this.config.encryptionEnabled ? 'Enforced' : 'Disabled';
+    encryptionToggle.disabled = this.config.encryptionEnabled;
     updateOnboardingStatus(this);
   }
 }
@@ -437,6 +470,7 @@ class TelemetryStream {
     this.listeners = new Set();
     this.pollInterval = null;
     this.eventSource = null;
+    this.socket = null;
     this.start();
   }
 
@@ -472,6 +506,26 @@ class TelemetryStream {
 
   start() {
     if (!this.config?.enabled) return;
+    if (this.config.websocketUrl) {
+      try {
+        this.socket = new WebSocket(this.config.websocketUrl);
+        this.socket.onmessage = (event) => {
+          try {
+            this.emit(JSON.parse(event.data));
+          } catch (error) {
+            this.emit({ type: 'raw', data: event.data });
+          }
+        };
+        this.socket.onerror = () => {
+          this.socket?.close();
+          this.startPolling();
+        };
+        return;
+      } catch (error) {
+        this.startPolling();
+        return;
+      }
+    }
     if (this.config.sseUrl) {
       try {
         this.eventSource = new EventSource(this.config.sseUrl);
@@ -508,6 +562,7 @@ function createPluginAPI(dashboard) {
       dataSourceRegistry[name] = handler;
     },
     getConfig: () => dashboard.config,
+    getActiveRole: () => dashboard.config.activeRole,
     onTelemetry: (handler) => dashboard.telemetry?.subscribe(handler),
   };
 }
@@ -522,6 +577,13 @@ async function loadPlugins(dashboard) {
     manifest.plugins.map((plugin) => {
       const pluginPath = typeof plugin === 'string' ? plugin : plugin.path;
       const options = typeof plugin === 'object' ? plugin.options : undefined;
+      const roles =
+        typeof plugin === 'object' && Array.isArray(plugin.roles)
+          ? plugin.roles
+          : ['admin', 'viewer'];
+      if (!roles.includes(dashboard.config.activeRole)) {
+        return Promise.resolve();
+      }
       if (!pluginPath) return Promise.resolve();
       return import(pluginPath).then((module) => {
         const meta = module.meta || {};
@@ -553,6 +615,15 @@ function setStatusPill(element, text, variant) {
   element.classList.add(variant);
 }
 
+function syncRuntimeStatus() {
+  if (!runtimeStatus) return;
+  if (window.location.protocol === 'file:') {
+    setStatusPill(runtimeStatus, 'Local file mode', 'warning');
+  } else {
+    setStatusPill(runtimeStatus, 'Secure runtime', 'positive');
+  }
+}
+
 function updateOnboardingStatus(dashboard) {
   if (!dashboard) return;
   const activeDashboard = dashboard.activeDashboard;
@@ -569,9 +640,10 @@ function updateOnboardingStatus(dashboard) {
   );
   setStatusPill(
     statusSecurity,
-    dashboard.config.encryptionEnabled ? 'Encryption on' : 'Encryption off',
+    dashboard.config.encryptionEnabled ? 'Encryption enforced' : 'Encryption off',
     dashboard.config.encryptionEnabled ? 'positive' : 'warning',
   );
+  syncRuntimeStatus();
 }
 
 async function init() {
@@ -599,6 +671,10 @@ async function init() {
       ...defaultConfig.realtime,
       ...storedConfig.realtime,
     },
+    remoteBackup: {
+      ...defaultConfig.remoteBackup,
+      ...storedConfig.remoteBackup,
+    },
     dashboards: storedConfig.dashboards || defaultConfig.dashboards,
     activeDashboardId: storedConfig.activeDashboardId || 'personal',
     activeRole:
@@ -614,6 +690,7 @@ async function init() {
 
   const dashboard = new Dashboard(config, storage, telemetry);
   dashboard.render();
+  syncRuntimeStatus();
 
   themeToggle.addEventListener('click', () => {
     const nextTheme = app.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -638,6 +715,9 @@ async function init() {
   });
 
   encryptionToggle.addEventListener('click', () => {
+    if (dashboard.config.encryptionEnabled) {
+      return;
+    }
     const nextValue = !dashboard.config.encryptionEnabled;
     dashboard.setEncryption(nextValue);
     dashboard.syncControls();
@@ -653,7 +733,7 @@ async function init() {
     });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `apex-dashboard-${dashboard.config.activeDashboardId}.json`;
+    link.download = `glowhaven-dashboard-${dashboard.config.activeDashboardId}.json`;
     link.click();
     URL.revokeObjectURL(link.href);
   });

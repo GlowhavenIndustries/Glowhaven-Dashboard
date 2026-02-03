@@ -1,28 +1,24 @@
 # Glowhaven Dashboard
 
-**Tagline:** “Orchestrate your digital ecosystem—your way.”
+**Tagline:** “Glowhaven Dashboard — Orchestrate your global digital ecosystem with precision.”
 
-Glowhaven Dashboard is a modular, fully customizable web dashboard for connecting and monitoring the digital tools, services, and devices that power your personal or professional ecosystem. It is designed from the ground up to emphasize performance, privacy, and flexibility—no AI required.
+Glowhaven Dashboard is a fully modular command center for orchestrating digital ecosystems at personal, team, or enterprise scale. Built for flawless control, high-speed operation, and total security, it delivers zero-compromise engineering with extensibility at its core. Configure with JSON, integrate any API-enabled service, and keep every signal under Glowhaven-grade authority.
 
 ## Quick start (recommended)
 
-> **Why:** Opening `index.html` directly can block some features (like imports, local storage, or CORS). Running a tiny local server avoids those issues.
+Glowhaven Dashboard runs as a static web app. For full telemetry access, serve it from a local or managed web server.
 
-1. **Make sure you have Python installed**
-   - macOS/Linux usually ship with Python.
-   - Windows: install from https://www.python.org/downloads/.
-
-2. **Start a local server**
+1. **Start a local server**
    ```bash
    python -m http.server 5173
    ```
 
-3. **Open the app**
+2. **Open the app**
    - Visit **http://localhost:5173** in your browser.
 
-That’s it—no build step required.
+No build step required.
 
-## Alternate start (if you already use Node.js)
+## Alternate start (Node.js)
 
 ```bash
 # from the repo folder
@@ -31,52 +27,49 @@ npx serve .
 
 Then open the URL shown in your terminal.
 
-## What you can do in the UI
+## Command experience highlights
 
-- **Switch dashboards:** Use the dashboard selector at the top (Personal / Team).
-- **Change role:** Toggle admin/viewer to see role-based UI changes.
-- **Themes:** Try light/dark, neon, and console modes.
-- **Export/Import:** Use the export/import buttons to share your layout.
-- **Security:** Toggle encryption for local configuration storage.
+- **Switch dashboards:** Personal and Team layouts with role-aware controls.
+- **Role-based access:** Admins can rearrange; Viewers receive a read-only experience.
+- **Themes:** Light/dark plus Glowhaven glow and minimalist console modes.
+- **Export/Import:** Share or archive layouts with encrypted configuration exports.
+- **Security:** AES-GCM encryption is enforced for local configuration storage.
 
 ## Configuration basics
 
-Glowhaven Dashboard uses a local JSON configuration (stored in `localStorage`). You can export/import it from the UI. A default configuration is bundled in `app.js`.
+Glowhaven Dashboard uses a local JSON configuration (stored in `localStorage`) and can export/import it from the UI. A default configuration is bundled in `app.js`, encrypted with AES-GCM.
 
 **Data sources you might want to customize:**
 
 - **Calendar** (GitHub, Google, Outlook)
 - **Weather** (Open-Meteo or OpenWeather)
-- **GitHub Projects** (personal token + repo list)
-- **Server Status** (custom endpoint list)
+- **GitHub Projects** (token + repo list)
+- **Global telemetry** (custom status endpoints)
 
-If a provider needs an API key or token, leave it blank to use the default demo data.
+If a provider needs an API key or token, set it in the config to activate production-ready connections.
 
 ## Plugins
 
 1. Add plugin files under `plugins/`.
 2. Register each plugin in `plugins/manifest.json`.
-3. Each plugin must export:
+3. Assign allowed roles (`admin` / `viewer`) per plugin in the manifest.
+4. Each plugin must export:
    ```js
    export function init(dashboard) {
      // register widgets, data sources, or behaviors
    }
    ```
 
-## Troubleshooting
+## Operations notes
 
-- **Blank page or errors in console**
-  - You likely opened `index.html` directly. Use the local server steps above.
-- **Widgets not updating**
-  - Make sure your API keys/tokens are valid and have the right permissions.
-- **HTTPS/CORS errors**
-  - Some APIs block browser requests without a backend. Consider proxying via a small server.
+- **Telemetry delays** may indicate missing API keys/tokens or CORS limitations for browser-only calls.
+- **Remote backups** can be enabled in `app.js` by setting a secure endpoint under `remoteBackup`.
 
 ## Tech stack
 
 - **Frontend:** HTML + CSS + JavaScript
-- **Backend (optional):** Node.js + Express
-- **Storage:** Local JSON config (`localStorage`) with optional AES-GCM encryption
+- **Backend (optional):** Node.js + Express (for proxying restricted APIs)
+- **Storage:** Local JSON config (`localStorage`) with AES-GCM encryption
 - **Real-time:** WebSockets / Server-Sent Events (optional)
 
 ## Tests
@@ -87,20 +80,14 @@ npm test
 
 ## Experience highlights
 
-- **Widget-based architecture** – Drag, resize, and rearrange modules like calendars, weather, server status, and GitHub projects.
-- **Zero-compromise design** – Local storage with optional AES-GCM encryption and no forced logins.
-- **Theming system** – Dark/light mode, neon glassmorphism, and a minimalist console mode toggle.
-- **Plugin-ready** – Add new modules via the `/plugins` manifest and `init(dashboard)` hooks.
+- **Widget-based architecture** – Drag, resize, and rearrange modules like calendars, weather, global telemetry, and pipeline oversight.
+- **Zero-compromise design** – AES-GCM encryption, role-based access control, and optional secure remote backups.
+- **Theming system** – Dark/light mode, Glowhaven glow accents, and a minimalist console mode.
+- **Plugin-ready** – Add new modules via the `/plugins` manifest with role-based permissions.
+- **Optional AI orchestration** – Integrate the Glowhaven AI Orchestrator plugin for anomaly alerts and layout recommendations.
 - **Team-ready controls** – Switch between personal/team dashboards with role-based access.
-- **Portable configs** – Export and import dashboard configuration JSON.
+- **Portable configs** – Export and import encrypted configuration JSON.
 
 ## Concept
 
-Think “Control Center for Everything,” but built to be fast, local-first, and fully under your control. Apex provides a widget-based architecture that lets you assemble a personalized command center for everything from calendars and weather to server status and pipeline telemetry.
-
-
-## Fun extras (optional)
-
-- Animated futuristic loading screens with holographic-style CSS effects
-- Minimalist “console mode” toggle for power users
-- GitHub Actions integration for tracking personal project pipelines
+Think “Control Center for Everything,” with Glowhaven-grade authority: fast, local-first, and fully under your control. Glowhaven Dashboard provides a modular command architecture that lets you assemble a personalized control center for everything from calendars and weather to server status and pipeline telemetry.

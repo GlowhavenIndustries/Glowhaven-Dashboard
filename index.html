@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Apex Dashboard</title>
+    <title>Glowhaven Dashboard</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,10 +16,25 @@
     <div class="app" data-theme="dark" data-visual="neon">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-icon">A</div>
+          <div class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img" focusable="false">
+              <defs>
+                <linearGradient id="glowhaven-core" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#ffd68a" />
+                  <stop offset="50%" stop-color="#f6b84d" />
+                  <stop offset="100%" stop-color="#f0a53b" />
+                </linearGradient>
+              </defs>
+              <polygon
+                points="24 4 40 14 40 34 24 44 8 34 8 14"
+                fill="url(#glowhaven-core)"
+              />
+              <circle cx="24" cy="24" r="6" fill="#0b0f1a" opacity="0.7" />
+            </svg>
+          </div>
           <div>
-            <h1>Apex</h1>
-            <p>Control Center</p>
+            <h1>Glowhaven</h1>
+            <p>Industries Command</p>
           </div>
         </div>
         <nav class="nav">
@@ -33,8 +48,8 @@
         <div class="sidebar-footer">
           <div class="team-card">
             <p class="eyebrow">Team</p>
-            <h3>Apex Prime</h3>
-            <p class="muted">18 members · 7 regions</p>
+            <h3>Glowhaven Prime</h3>
+            <p class="muted">18 divisions · 7 regions</p>
           </div>
         </div>
       </aside>
@@ -43,17 +58,17 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">Good morning</p>
-            <h2>Orchestrate your ecosystem</h2>
+            <h2>Glowhaven Dashboard — Orchestrate your global digital ecosystem with precision.</h2>
           </div>
           <div class="topbar-actions">
             <div class="search">
               <span>⌕</span>
-              <input type="text" placeholder="Search modules, automations, data" />
+              <input type="text" placeholder="Search modules, automations, intelligence" />
             </div>
             <button class="pill" id="themeToggle">Toggle theme</button>
-            <button class="pill" id="neonToggle">Neon mode</button>
+            <button class="pill" id="neonToggle">Glow mode</button>
             <button class="pill" id="consoleToggle">Console mode</button>
-            <button class="pill primary">Launch workflow</button>
+            <button class="pill primary">Launch directive</button>
           </div>
         </header>
 
@@ -61,13 +76,13 @@
           <div class="hero-card">
             <div class="hero-text">
               <p class="eyebrow">System pulse</p>
-              <h3>All critical services are healthy</h3>
+              <h3>All critical services are within Glowhaven operational thresholds</h3>
               <p class="muted">
-                Apex is streaming real-time health telemetry from your most important stacks.
+                Glowhaven is streaming real-time health telemetry from your most important stacks.
               </p>
               <div class="hero-actions">
                 <button class="pill primary">View status map</button>
-                <button class="pill ghost">Download report</button>
+                <button class="pill ghost">Download briefing</button>
               </div>
             </div>
             <div class="hero-metrics">
@@ -104,11 +119,15 @@
           </div>
           <div class="control-group">
             <label class="label" for="encryptionToggle">Encrypt config</label>
-            <button class="pill ghost" id="encryptionToggle">Disabled</button>
+            <button class="pill ghost" id="encryptionToggle">Enforced</button>
           </div>
           <div class="control-group">
             <label class="label" for="soundToggle">Ambient sound</label>
             <button class="pill ghost" id="soundToggle">Muted</button>
+          </div>
+          <div class="control-group">
+            <label class="label" for="runtimeStatus">Runtime</label>
+            <span class="status-pill neutral" id="runtimeStatus">Secured</span>
           </div>
           <div class="control-actions">
             <button class="pill" id="exportConfig">Export config</button>
@@ -121,24 +140,24 @@
           <div class="section-header">
             <div>
               <p class="eyebrow">Quick start</p>
-              <h3>Make Apex yours in four quick steps</h3>
+              <h3>Secure Glowhaven access in four steps</h3>
             </div>
             <p class="muted">
-              New here? Follow this short guide to configure dashboards, roles, and widgets.
+              Follow this short guide to configure dashboards, roles, and operational widgets.
             </p>
           </div>
           <div class="onboarding-grid">
             <article class="onboarding-card">
-              <h4>1. Pick a dashboard</h4>
+              <h4>1. Select a command deck</h4>
               <p class="muted">
-                Switch between Personal or Team to load the right widget layout.
+                Switch between Personal or Team to load the right operational layout.
               </p>
               <span class="status-pill neutral" id="statusDashboard">Personal dashboard</span>
             </article>
             <article class="onboarding-card">
               <h4>2. Set your role</h4>
               <p class="muted">
-                Admins can edit the grid. Viewers get a read-only experience.
+                Admins can edit the grid. Viewers receive a read-only experience.
               </p>
               <span class="status-pill neutral" id="statusRole">Admin role</span>
             </article>
@@ -152,9 +171,9 @@
             <article class="onboarding-card">
               <h4>4. Secure and save</h4>
               <p class="muted">
-                Turn on encryption, then export your config to keep a portable backup.
+                Encryption is enforced. Export your config to keep a portable backup.
               </p>
-              <span class="status-pill neutral" id="statusSecurity">Encryption off</span>
+              <span class="status-pill neutral" id="statusSecurity">Encryption enforced</span>
             </article>
           </div>
         </section>
