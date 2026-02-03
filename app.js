@@ -11,6 +11,10 @@ const soundToggle = document.getElementById('soundToggle');
 const exportButton = document.getElementById('exportConfig');
 const importButton = document.getElementById('importConfig');
 const importInput = document.getElementById('importInput');
+const statusDashboard = document.getElementById('statusDashboard');
+const statusRole = document.getElementById('statusRole');
+const statusEdit = document.getElementById('statusEdit');
+const statusSecurity = document.getElementById('statusSecurity');
 
 const STORAGE_KEY = 'apex-dashboard-config';
 const KEY_STORAGE = 'apex-dashboard-key';
@@ -423,6 +427,7 @@ class Dashboard {
     dashboardSelect.value = this.config.activeDashboardId;
     roleSelect.value = this.config.activeRole;
     encryptionToggle.textContent = this.config.encryptionEnabled ? 'Enabled' : 'Disabled';
+    updateOnboardingStatus(this);
   }
 }
 
@@ -539,6 +544,34 @@ function syncHeroMetrics(metrics = {}) {
   if (availability && metrics.availability) availability.textContent = metrics.availability;
   if (latency && metrics.latency) latency.textContent = metrics.latency;
   if (alerts && metrics.alerts) alerts.textContent = metrics.alerts;
+}
+
+function setStatusPill(element, text, variant) {
+  if (!element) return;
+  element.textContent = text;
+  element.classList.remove('positive', 'warning', 'neutral');
+  element.classList.add(variant);
+}
+
+function updateOnboardingStatus(dashboard) {
+  if (!dashboard) return;
+  const activeDashboard = dashboard.activeDashboard;
+  setStatusPill(
+    statusDashboard,
+    `${activeDashboard?.label || 'Personal'} dashboard`,
+    'neutral',
+  );
+  setStatusPill(statusRole, `${dashboard.config.activeRole} role`, 'neutral');
+  setStatusPill(
+    statusEdit,
+    dashboard.canEdit ? 'Edit mode enabled' : 'View-only mode',
+    dashboard.canEdit ? 'positive' : 'warning',
+  );
+  setStatusPill(
+    statusSecurity,
+    dashboard.config.encryptionEnabled ? 'Encryption on' : 'Encryption off',
+    dashboard.config.encryptionEnabled ? 'positive' : 'warning',
+  );
 }
 
 async function init() {
