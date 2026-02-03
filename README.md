@@ -1,8 +1,8 @@
-# Apex Dashboard
+# Glowhaven Dashboard
 
 **Tagline:** “Orchestrate your digital ecosystem—your way.”
 
-Apex Dashboard is a modular, fully customizable web dashboard for connecting and monitoring the digital tools, services, and devices that power your personal or professional ecosystem. It is designed from the ground up to emphasize performance, privacy, and flexibility—no AI required.
+Glowhaven Dashboard is a modular, fully customizable web dashboard for connecting and monitoring the digital tools, services, and devices that power your personal or professional ecosystem. It is designed from the ground up to emphasize performance, privacy, and flexibility—no AI required.
 
 ## Quick start (recommended)
 
@@ -98,11 +98,6 @@ npm test
 
 Think “Control Center for Everything,” but built to be fast, local-first, and fully under your control. Apex provides a widget-based architecture that lets you assemble a personalized command center for everything from calendars and weather to server status and pipeline telemetry.
 
-## Why it fits Apex branding
-
-- **Building the future** – Modern, modular, forward-looking design language.
-- **On our terms** – Full user control over data, layout, and integrations.
-- **Zero-compromise ecosystems** – Everything connected, privacy-first.
 
 ## Fun extras (optional)
 
