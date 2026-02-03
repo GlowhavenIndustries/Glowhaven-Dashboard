@@ -41,7 +41,7 @@ Then open the URL shown in your terminal.
 
 ## Configuration basics
 
-Apex uses a local JSON configuration (stored in `localStorage`). You can export/import it from the UI. A default configuration is bundled in `app.js`.
+Glowhaven Dashboard uses a local JSON configuration (stored in `localStorage`). You can export/import it from the UI. A default configuration is bundled in `app.js`.
 
 **Data sources you might want to customize:**
 
