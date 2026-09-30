@@ -1,200 +1,306 @@
 # Glowhaven Dashboard
 
-Glowhaven Dashboard is a secure company operations platform for monitoring, coordination, integrations, and controlled automation.
+> **A secure, self-hosted operations command center for modern companies.**
 
-It provides a shared operational surface for teams while keeping authentication, authorization, credentials, and audit data on the application server.
+[![CI](https://github.com/GlowhavenIndustries/Glowhaven-Dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/GlowhavenIndustries/Glowhaven-Dashboard/actions/workflows/ci.yml)
+![Node 20+](https://img.shields.io/badge/node-20%2B-111827?logo=node.js&logoColor=white)
+![Security](https://img.shields.io/badge/security-hardened-0f766e)
+![Self Hosted](https://img.shields.io/badge/deployment-self--hosted-5b21b6)
 
-## Platform capabilities
+**Monitor. Understand. Coordinate. Act.**
 
-- Business KPIs from company API endpoints
-- Incident monitoring
-- Automation inventory and controlled execution
-- Team activity feeds
-- GitHub Actions repository monitoring
-- Service health monitoring
-- Calendar integrations
-- Weather monitoring
-- Multiple operational workspaces
-- Search and modular dashboard layout
-- Role-aware controls
-- Server-backed company settings
-- Tamper-evident audit logging
+Glowhaven Dashboard puts the operational signals a company cares about into one fast, modular workspace: business KPIs, incidents, service health, workflows, team activity, calendars, GitHub Actions, and controlled automation.
 
-## Security architecture
+It is designed around a simple rule:
 
-### Enterprise authentication
+**The browser displays company data. The server owns credentials and protected actions.**
 
-Glowhaven supports:
+---
 
-- Local administrator bootstrap with a memory-hard scrypt password hash
-- Secure server-side sessions with expiring random session tokens
-- Optional OIDC single sign-on with PKCE
-- Role mapping for owner, admin, operator, and viewer accounts
+## Why Glowhaven?
 
-The built-in role selector is no longer a security boundary. Protected actions are authorized on the server.
+Most dashboards stop at charts.
 
-### Server-side secret storage
+Glowhaven is built to be the operational layer that connects the systems a company already uses while keeping sensitive credentials and privileged actions on the server.
 
-Integration credentials are never stored in browser localStorage.
+### Built for real company environments
 
-Secrets are encrypted on the server using AES-256-GCM with a deployment-specific master key. The browser receives integration metadata and masked configuration only.
+- 🔐 Server-side authentication with expiring sessions
+- 🛡️ Server-enforced role authorization
+- 🔑 Encrypted integration secrets with AES-256-GCM
+- 🚫 CSRF protection on mutating requests
+- 🌐 SSRF defenses for remote integration targets
+- 🧾 Tamper-evident audit logging with a hash chain
+- 🔒 Production security headers and HSTS
+- 🔑 Optional enterprise OIDC SSO with PKCE
+- ⚙️ Controlled automation execution with audited actions
+- 🧩 Modular workspaces with role-aware controls
+- 🐳 Docker deployment with persistent application storage
+- ✅ Automated regression and security checks in GitHub Actions
 
-Production deployments must provide `GLOWHAVEN_MASTER_KEY` as a 32-byte key encoded as 64 hexadecimal characters.
+---
 
-### Hardened authorization
+## What you can connect
 
-Mutating API requests require:
+Glowhaven intentionally keeps integrations generic so teams can connect existing systems without rebuilding the dashboard.
 
-- an authenticated session
-- an appropriate server-side role
-- a matching same-origin request
-- a valid CSRF token
+| Module | Purpose |
+| --- | --- |
+| **Business KPIs** | Show company metrics from an internal JSON endpoint |
+| **Incident Center** | Surface active incidents and severity |
+| **Service Health** | Monitor service endpoints, availability, and latency |
+| **Automation Queue** | View jobs and trigger permitted automation actions |
+| **Team Activity** | Pull operational activity from company or GitHub sources |
+| **Calendar** | Google Calendar, Outlook-style endpoints, or GitHub activity |
+| **Release Pipelines** | Monitor GitHub Actions for configured repositories |
+| **Local Conditions** | Weather and air-quality data from Open-Meteo |
+| **Workspaces** | Operations and Team layouts with customizable modules |
 
-Authentication attempts are rate limited.
+---
 
-Remote integration targets are validated. Localhost targets are blocked, and production private-network access is disabled unless the deployment explicitly enables it.
+## Security model
 
-Production responses include security headers and HSTS.
+Glowhaven is designed so important controls live on the backend rather than only in the UI.
 
-### Audit logging
+### Authentication
 
-Administrative changes, authentication events, user creation, integration changes, organization changes, and automation execution are written to a server-side append-only audit log.
+Local accounts use salted, memory-hard scrypt password hashes.
 
-Each audit record includes a cryptographic hash linked to the previous record so unexpected changes can be detected.
+Sessions use random opaque tokens. Only the session hash is stored in application state, and sessions expire automatically.
 
-## Application architecture
+Optional OIDC SSO uses:
 
-```
-Browser
-  |
-  | authenticated session + CSRF protected API
-  v
-Glowhaven server
-  |
-  +-- Authentication
-  +-- Authorization
-  +-- Encrypted secret store
-  +-- Audit log
-  +-- Integration proxy
-  |
-  +-- GitHub
-  +-- Company APIs
-  +-- Service health endpoints
-  +-- Calendar providers
-  +-- Open-Meteo
-```
+- Authorization Code flow
+- PKCE with S256
+- State validation
+- Nonce validation
+- HTTPS-only provider metadata
+- ID token signature validation through provider JWKS
+- Issuer, audience, expiry, nonce, email verification, and authorized-party checks
 
-The browser renders the operational UI. The server owns credentials and protected actions.
+### Authorization
 
-## Company setup
+The UI can hide controls for convenience, but it is **not** the security boundary.
 
-Start the server:
+The server enforces permissions for:
 
-```bash
+- Viewer access
+- Operational execution
+- Company administration
+- User administration
+- Audit access
+
+### Secret storage
+
+Integration credentials are never written to browser local storage.
+
+Secrets are encrypted server-side with AES-256-GCM using a deployment-specific 32-byte master key.
+
+The browser receives integration metadata and configuration needed for the interface, but not stored secret values.
+
+### SSRF protection
+
+Remote integration endpoints are validated before requests are made.
+
+Production defaults block private and local network targets, including common IPv4 and IPv6 private, loopback, link-local, multicast, and IPv4-mapped IPv6 ranges.
+
+Endpoints containing embedded credentials or sensitive credential query parameters are rejected.
+
+Outbound DNS resolution is checked and the selected resolved address is pinned for the request.
+
+### Auditability
+
+Administrative changes, authentication events, user creation, integration changes, organization changes, and automation execution are written to an append-only JSONL audit stream.
+
+Each record is linked to the previous record with a keyed SHA-256 hash.
+
+The audit API verifies the chain before returning records.
+
+---
+
+## Architecture
+
+~~~text
+                    Browser
+                       |
+                       | Same-origin session
+                       | + CSRF-protected mutations
+                       v
+              +-------------------+
+              |   Glowhaven API   |
+              +-------------------+
+                 |       |       |
+        +--------+       |       +---------+
+        |                |                 |
+        v                v                 v
+   Authentication   Secret Store       Audit Log
+   Authorization    AES-256-GCM        Hash Chain
+        |
+        +---------------------------------------------+
+        |                    |                        |
+        v                    v                        v
+   Company APIs         GitHub Actions          Service Endpoints
+        |
+        +--------------------+
+                             |
+                             v
+                       Calendar / Weather
+~~~
+
+The frontend stays intentionally lightweight. There is no required frontend framework or bundler.
+
+---
+
+## Quick start
+
+### 1. Clone
+
+~~~bash
+git clone https://github.com/GlowhavenIndustries/Glowhaven-Dashboard.git
+cd Glowhaven-Dashboard
+~~~
+
+### 2. Start locally
+
+~~~bash
 npm start
-```
-
-For local development, use `npm run dev`.
+~~~
 
 Open:
 
-`http://localhost:5173`
+~~~text
+http://localhost:5173
+~~~
 
-On the first launch, Glowhaven asks for the initial administrator account.
+On the first launch, Glowhaven creates the initial owner account.
 
-Then open **Company settings** to configure:
+### 3. Configure your company
 
-- company name and timezone
-- weather location
-- service health URLs
-- GitHub repositories and access token
-- KPI endpoint
-- incident endpoint
-- automation endpoint
-- activity endpoint
-- calendar provider
+Open **Company settings** and configure the integrations your team needs.
 
-Credentials entered through Company settings are sent to the authenticated server and stored encrypted there.
+For local development, Glowhaven can create a local master key automatically.
 
-## Production configuration
+For production, provide a real deployment secret:
 
-Copy `.env.example` into your deployment environment and provide a strong master key.
+~~~bash
+export GLOWHAVEN_MASTER_KEY="$(openssl rand -hex 32)"
+~~~
 
-For enterprise SSO, configure:
+The key must be **64 hexadecimal characters** representing 32 bytes.
 
-- `OIDC_ISSUER`
-- `OIDC_CLIENT_ID`
-- `OIDC_CLIENT_SECRET`
-- `OIDC_REDIRECT_URI`
+---
 
-Optional role mapping variables:
+## Production deployment
 
-- `OIDC_ADMIN_EMAILS`
-- `OIDC_ADMIN_GROUPS`
+Docker is included:
 
-Run behind HTTPS in production.
-
-Persistent application data lives under `GLOWHAVEN_DATA_DIR`, which should be backed by a protected persistent volume.
-
-Docker deployment is included:
-
-```bash
+~~~bash
 export GLOWHAVEN_MASTER_KEY="$(openssl rand -hex 32)"
 docker compose up -d --build
-```
+~~~
 
-Place the service behind an HTTPS reverse proxy in production.
+For production:
+
+1. Put Glowhaven behind HTTPS.
+2. Store GLOWHAVEN_MASTER_KEY in your deployment secret manager.
+3. Persist GLOWHAVEN_DATA_DIR.
+4. Keep GLOWHAVEN_ALLOW_PRIVATE_NETWORK=0 unless private integration targets are deliberately required.
+5. Configure OIDC when enterprise SSO is needed.
+
+### OIDC configuration
+
+Set:
+
+~~~text
+OIDC_ISSUER=
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URI=https://your-company.example.com/api/auth/oidc/callback
+OIDC_SCOPE=openid profile email
+OIDC_ADMIN_EMAILS=
+OIDC_ADMIN_GROUPS=
+~~~
+
+---
 
 ## Roles
 
-**Owner** has full administration access.
+| Role | Access |
+| --- | --- |
+| **Owner** | Full administration and operational control |
+| **Admin** | Company settings, users, integrations, audit access |
+| **Operator** | Permitted operational actions |
+| **Viewer** | Read-only operational access |
 
-**Admin** can manage company settings, users, integrations, and audit access.
+Role checks are enforced on the server.
 
-**Operator** can execute permitted operational actions.
-
-**Viewer** has read-only operational access.
-
-Role checks are enforced by the backend rather than by the browser.
-
-## Security operations
-
-Administrative actions are visible under Company settings in the Audit trail section.
-
-The server stores password hashes, session records, encrypted integration secrets, and audit records under the configured runtime data directory. Runtime data is excluded from Git.
+---
 
 ## Development
 
-Use:
+Glowhaven uses Node.js and the built-in test runner.
 
-```bash
+### Run development mode
+
+~~~bash
 npm run dev
-```
+~~~
 
-Validation:
+### Validate syntax and repository checks
 
-```bash
-npm test
+~~~bash
 npm run check
-```
+~~~
 
-GitHub Actions runs the same validation automatically on repository changes.
+### Run tests
 
-No frontend framework or bundler is required.
+~~~bash
+npm test
+~~~
 
-## Deployment
+GitHub Actions runs the validation and test suite on pushes to main and on pull requests targeting main.
 
-Glowhaven can run as a single Node.js service behind a reverse proxy or load balancer.
+---
 
-For larger deployments, the storage layer can be replaced with managed database and session infrastructure while keeping the same server API boundary.
+## Repository layout
+
+~~~text
+.
+├── app.js
+├── dataSources.js
+├── index.html
+├── styles.css
+├── server.js
+├── server/
+│   ├── auth.js
+│   ├── oidc.js
+│   ├── security.js
+│   └── storage.js
+├── widgets/
+│   ├── calendar.js
+│   ├── githubProjects.js
+│   ├── operations.js
+│   ├── serverStatus.js
+│   └── weather.js
+├── tests/
+│   ├── audit.test.js
+│   └── security.test.js
+├── Dockerfile
+├── docker-compose.yml
+└── .github/
+    └── workflows/
+        └── ci.yml
+~~~
+
+---
 
 ## Integration contract
 
 Company endpoints should return JSON.
 
-Common response shapes include:
+A KPI endpoint can return:
 
-```json
+~~~json
 {
   "metrics": [
     {
@@ -204,9 +310,11 @@ Common response shapes include:
     }
   ]
 }
-```
+~~~
 
-```json
+An incident endpoint can return:
+
+~~~json
 {
   "incidents": [
     {
@@ -217,12 +325,84 @@ Common response shapes include:
     }
   ]
 }
-```
+~~~
 
-The integration layer is intentionally generic so companies can connect existing internal systems without changing the dashboard UI.
+The integration layer is intentionally generic. Your existing systems remain the source of truth.
 
-## Project direction
+---
 
-**Monitor. Understand. Coordinate. Act.**
+## Why fork Glowhaven?
 
-Glowhaven is the operational surface. A company's existing systems provide the business data, events, and actions.
+Fork it when you want an operations surface that you can shape around your company instead of forcing your workflows into someone else's dashboard.
+
+Glowhaven is small enough to understand, simple enough to self-host, and structured so the backend security boundary stays clear.
+
+Good fork targets include:
+
+- Internal operations portals
+- Engineering command centers
+- Service health dashboards
+- Incident rooms
+- Executive operational views
+- Controlled automation consoles
+- Company-specific integration hubs
+
+Build the interface around your organization, then keep your existing systems as the underlying source of truth.
+
+---
+
+## Project principles
+
+**Secure by default.**
+
+Protected operations belong on the server.
+
+**Self-hosted by design.**
+
+Keep company data and credentials inside infrastructure you control.
+
+**Modular without bloat.**
+
+Add the operational modules your team actually needs.
+
+**Readable code over unnecessary complexity.**
+
+Glowhaven uses a small Node.js server and browser-native frontend patterns.
+
+**Audit what matters.**
+
+Administrative and privileged actions should leave a trace.
+
+---
+
+## Roadmap
+
+Glowhaven's architecture leaves room for future enterprise improvements such as:
+
+- Managed database storage
+- Distributed session storage
+- More identity providers
+- Additional integration adapters
+- Expanded audit reporting
+- Organization-level workspace templates
+- Deeper automation policy controls
+
+The current project favors a compact, understandable foundation that teams can extend.
+
+---
+
+## License
+
+No license file is currently included in this repository. Check the repository's current licensing terms before redistributing or deploying it as a commercial product.
+
+---
+
+## Built by GlowhavenIndustries
+
+**Building the future, on our terms.**
+
+Glowhaven Dashboard is an open-source-oriented foundation for company operations, built around a simple idea:
+
+**Your systems own the data. Glowhaven owns the operational surface.**
+
+⭐ **Star the repo to follow the project. Fork it to build your own company command center.**
