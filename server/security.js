@@ -79,7 +79,7 @@ export async function validateRemoteUrl(input) {
 
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
-    throw new Error('Local integration endpoints are blocked');
+    throw new Error('Localhost and local integration endpoints are blocked');
   }
 
   if (process.env.NODE_ENV === 'production' && process.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK !== '1') {
