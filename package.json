@@ -1,8 +1,8 @@
 {
-  "name": "glowhaven-dashboard",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "test": "node --test"
-  }
+  "name":"glowhaven-dashboard",
+  "version":"2.0.0",
+  "private":true,
+  "type":"module",
+  "description":"Glowhaven Industries modular command center",
+  "scripts":{"test":"node --test","check":"node --check app.js && node --check dataSources.js && node --check widgets/calendar.js && node --check widgets/weather.js && node --check widgets/serverStatus.js && node --check widgets/githubProjects.js"}
 }
