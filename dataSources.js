@@ -112,3 +112,12 @@ export async function fetchTelemetrySnapshot() {
     server: data,
   };
 }
+
+export async function executeAutomation(payload = {}) {
+  const csrf = globalThis.__glowhavenCsrf || '';
+  return fetchJson('/api/automations/run', {
+    method: 'POST',
+    headers: csrf ? { 'X-Glowhaven-CSRF': csrf, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
