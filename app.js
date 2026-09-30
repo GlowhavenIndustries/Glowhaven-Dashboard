@@ -1,489 +1,144 @@
-import { fetchTelemetrySnapshot } from './dataSources.js';
+import { fetchActivity, fetchAutomations, fetchBusinessKpis, fetchCalendarEvents, fetchGithubProjects, fetchIncidents, fetchServerStatus, fetchTelemetrySnapshot, fetchWeather } from './dataSources.js';
 
-export class Widget {
-  constructor(config, dashboard) {
-    this.config = config;
-    this.dashboard = dashboard;
-    this.element = null;
-    this.cleanups = [];
-    this.intervals = [];
-  }
+const LOCAL_KEY = 'glowhaven-ui-v1';
+const $ = (id) => document.getElementById(id);
+const state = { user: null, csrf: '', organization: { name: 'Company Workspace', timezone: 'UTC' }, integrations: [], theme: 'dark', visual: 'neon', consoleMode: false, dashboard: 'operations', role: 'viewer', view: 'Overview' };
 
-  render() {
-    const card = document.createElement('article');
-    card.className = 'widget-card';
-    card.dataset.widgetId = this.config.id;
-    card.style.gridColumn = `${this.config.position?.x || 1} / span ${this.config.position?.w || 4}`;
-    card.style.gridRow = `${this.config.position?.y || 1} / span ${this.config.position?.h || 2}`;
-
-    const header = document.createElement('header');
-    header.className = 'widget-header';
-    const title = document.createElement('div');
-    title.innerHTML = '<span class="eyebrow"></span><h3></h3>';
-    title.querySelector('.eyebrow').textContent = this.config.type;
-    title.querySelector('h3').textContent = this.config.title || 'Module';
-
-    const actions = document.createElement('div');
-    actions.className = 'widget-actions';
-    const badge = document.createElement('span');
-    badge.className = 'widget-badge';
-    badge.textContent = this.config.role || 'viewer';
-    actions.appendChild(badge);
-
-    if (this.dashboard.canEdit) {
-      const remove = document.createElement('button');
-      remove.className = 'icon-button';
-      remove.type = 'button';
-      remove.title = 'Remove widget';
-      remove.textContent = '×';
-      remove.addEventListener('click', () => this.dashboard.removeWidget(this.config.id));
-      actions.appendChild(remove);
-    }
-
-    header.append(title, actions);
-    const body = document.createElement('div');
-    body.className = 'widget-body';
-    body.appendChild(this.renderContent());
-    card.append(header, body);
-    if (this.dashboard.canEdit) this.enableDrag(card);
-    this.element = card;
-    return card;
-  }
-
-  renderContent() {
-    const p = document.createElement('p');
-    p.className = 'muted';
-    p.textContent = 'Loading…';
-    return p;
-  }
-
-  every(fn, ms) {
-    const timer = setInterval(fn, ms);
-    this.intervals.push(timer);
-    return timer;
-  }
-
-  enableDrag(card) {
-    card.setAttribute('draggable', 'true');
-    const onDragStart = (event) => {
-      card.classList.add('is-dragging');
-      event.dataTransfer?.setData('text/plain', this.config.id);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-    };
-    const onDragEnd = () => card.classList.remove('is-dragging');
-    const onDragOver = (event) => { event.preventDefault(); card.classList.add('drop-target'); };
-    const onDragLeave = () => card.classList.remove('drop-target');
-    const onDrop = (event) => {
-      event.preventDefault();
-      card.classList.remove('drop-target');
-      const sourceId = event.dataTransfer?.getData('text/plain');
-      if (sourceId) this.dashboard.moveWidget(sourceId, this.config.id);
-    };
-    card.addEventListener('dragstart', onDragStart);
-    card.addEventListener('dragend', onDragEnd);
-    card.addEventListener('dragover', onDragOver);
-    card.addEventListener('dragleave', onDragLeave);
-    card.addEventListener('drop', onDrop);
-    this.cleanups.push(() => {
-      card.removeEventListener('dragstart', onDragStart);
-      card.removeEventListener('dragend', onDragEnd);
-      card.removeEventListener('dragover', onDragOver);
-      card.removeEventListener('dragleave', onDragLeave);
-      card.removeEventListener('drop', onDrop);
-    });
-  }
-
-  destroy() {
-    this.cleanups.forEach((fn) => fn());
-    this.cleanups = [];
-    this.intervals.forEach(clearInterval);
-    this.intervals = [];
-    this.unsubscribe?.();
-  }
-}
-
-const DEFAULT_CONFIG = {
-  version: 4,
-  theme: 'dark',
-  visual: 'neon',
-  consoleMode: false,
-  activeDashboardId: 'operations',
-  activeRole: 'admin',
-  organization: { name: 'Your Company', timezone: 'local' },
-  dataSources: {
-    calendar: {
-      provider: 'none',
-      refreshMs: 300000,
-      github: { org: '' },
-      google: { apiKey: '', calendarId: '' },
-      outlook: { endpoint: '', token: '' }
-    },
-    weather: { provider: 'openMeteo', refreshMs: 60000, openMeteo: { units: 'imperial', location: { city: '', lat: null, lon: null } } },
-    serverStatus: { refreshMs: 15000, endpoints: [] },
-    github: { refreshMs: 60000, token: '', repositories: [] },
-    kpi: { refreshMs: 60000, endpoint: '', token: '', metrics: [] },
-    incidents: { refreshMs: 30000, endpoint: '', token: '', incidents: [] },
-    automations: { refreshMs: 30000, endpoint: '', token: '', automations: [] },
-    activity: { refreshMs: 30000, provider: 'none', github: { org: '' }, endpoint: '', token: '' }
-  },
-  realtime: { enabled: true, refreshMs: 5000 },
-  dashboards: {
-    operations: {
-      id: 'operations', label: 'Operations', role: 'admin',
-      widgets: [
-        { id: 'kpi-1', type: 'kpi', title: 'Business Pulse', position: { x: 1, y: 1, w: 4, h: 2 }, role: 'viewer' },
-        { id: 'incident-1', type: 'incidents', title: 'Incident Center', position: { x: 5, y: 1, w: 4, h: 2 }, role: 'admin' },
-        { id: 'automation-1', type: 'automations', title: 'Automation Queue', position: { x: 9, y: 1, w: 4, h: 2 }, role: 'admin' },
-        { id: 'github-1', type: 'githubProjects', title: 'Release Pipelines', position: { x: 1, y: 3, w: 6, h: 3 }, role: 'viewer' },
-        { id: 'server-1', type: 'serverStatus', title: 'Service Health', position: { x: 7, y: 3, w: 6, h: 3 }, role: 'viewer' }
-      ]
-    },
-    team: {
-      id: 'team', label: 'Team', role: 'viewer',
-      widgets: [
-        { id: 'activity-team', type: 'activity', title: 'Team Activity', position: { x: 1, y: 1, w: 6, h: 3 }, role: 'viewer' },
-        { id: 'calendar-team', type: 'calendar', title: 'Team Calendar', position: { x: 7, y: 1, w: 6, h: 3 }, role: 'viewer' },
-        { id: 'weather-team', type: 'weather', title: 'Local Conditions', position: { x: 1, y: 4, w: 4, h: 2 }, role: 'viewer' },
-        { id: 'kpi-team', type: 'kpi', title: 'Team Pulse', position: { x: 5, y: 4, w: 8, h: 2 }, role: 'viewer' }
-      ]
-    }
-  }
+const layouts = {
+  operations: { label: 'Operations', widgets: [
+    { id: 'kpi', type: 'kpi', title: 'Business KPIs', x: 1, y: 1, w: 4, h: 2 },
+    { id: 'incidents', type: 'incidents', title: 'Incident Center', x: 5, y: 1, w: 4, h: 2 },
+    { id: 'automations', type: 'automations', title: 'Automation Queue', x: 9, y: 1, w: 4, h: 2 },
+    { id: 'github', type: 'githubProjects', title: 'Release Pipelines', x: 1, y: 3, w: 6, h: 3 },
+    { id: 'services', type: 'serverStatus', title: 'Service Health', x: 7, y: 3, w: 6, h: 3 },
+  ] },
+  team: { label: 'Team', widgets: [
+    { id: 'activity', type: 'activity', title: 'Team Activity', x: 1, y: 1, w: 6, h: 3 },
+    { id: 'calendar', type: 'calendar', title: 'Calendar', x: 7, y: 1, w: 6, h: 3 },
+    { id: 'weather', type: 'weather', title: 'Local Conditions', x: 1, y: 4, w: 4, h: 2 },
+    { id: 'team-kpi', type: 'kpi', title: 'Team KPIs', x: 5, y: 4, w: 8, h: 2 },
+  ] },
 };
 
-const STORAGE_KEY = 'glowhaven-dashboard-v4';
-const registry = {};
-const $ = (id) => document.getElementById(id);
-const clone = (value) => structuredClone(value);
+const widgetClasses = {};
 
-function mergeConfig(base, patch = {}) {
-  return {
-    ...base, ...patch,
-    organization: { ...base.organization, ...patch.organization },
-    dataSources: Object.fromEntries(Object.keys(base.dataSources).map((key) => [
-      key,
-      { ...(base.dataSources[key] || {}), ...(patch.dataSources?.[key] || {}) }
-    ])),
-    realtime: { ...base.realtime, ...patch.realtime },
-    dashboards: patch.dashboards || base.dashboards
-  };
-}
-
-class Storage {
-  load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? mergeConfig(clone(DEFAULT_CONFIG), JSON.parse(raw)) : clone(DEFAULT_CONFIG);
-    } catch {
-      return clone(DEFAULT_CONFIG);
-    }
+export class Widget {
+  constructor(config, dashboard) { this.config = config; this.dashboard = dashboard; this.element = null; this.cleanups = []; this.intervals = []; }
+  render() {
+    const card = document.createElement('article'); card.className = 'widget-card'; card.dataset.widgetId = this.config.id;
+    card.style.gridColumn = this.config.x + ' / span ' + this.config.w; card.style.gridRow = this.config.y + ' / span ' + this.config.h;
+    const header = document.createElement('header'); header.className = 'widget-header';
+    const heading = document.createElement('div'); const type = document.createElement('span'); type.className = 'eyebrow'; type.textContent = this.config.type;
+    const title = document.createElement('h3'); title.textContent = this.config.title; heading.append(type, title);
+    const actions = document.createElement('div'); actions.className = 'widget-actions'; const role = document.createElement('span'); role.className = 'widget-badge'; role.textContent = this.dashboard.state.role; actions.append(role);
+    if (this.dashboard.canManageWorkspace) { const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'icon-button'; remove.setAttribute('aria-label', 'Remove module'); remove.textContent = '×'; remove.addEventListener('click', () => this.dashboard.removeWidget(this.config.id)); actions.append(remove); }
+    header.append(heading, actions); const body = document.createElement('div'); body.className = 'widget-body'; body.append(this.renderContent()); card.append(header, body);
+    if (this.dashboard.canManageWorkspace) this.enableDrag(card); this.element = card; return card;
   }
-  save(config) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); return true; } catch { return false; }
+  renderContent() { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'No data'; return p; }
+  every(fn, ms) { const timer = setInterval(fn, ms); this.intervals.push(timer); return timer; }
+  enableDrag(card) {
+    card.draggable = true;
+    const onStart = (event) => { event.dataTransfer?.setData('text/plain', this.config.id); card.classList.add('is-dragging'); };
+    const onEnd = () => card.classList.remove('is-dragging'); const onOver = (event) => { event.preventDefault(); card.classList.add('drop-target'); };
+    const onLeave = () => card.classList.remove('drop-target'); const onDrop = (event) => { event.preventDefault(); card.classList.remove('drop-target'); const source = event.dataTransfer?.getData('text/plain'); if (source) this.dashboard.moveWidget(source, this.config.id); };
+    card.addEventListener('dragstart', onStart); card.addEventListener('dragend', onEnd); card.addEventListener('dragover', onOver); card.addEventListener('dragleave', onLeave); card.addEventListener('drop', onDrop);
+    this.cleanups.push(() => { card.removeEventListener('dragstart', onStart); card.removeEventListener('dragend', onEnd); card.removeEventListener('dragover', onOver); card.removeEventListener('dragleave', onLeave); card.removeEventListener('drop', onDrop); });
   }
-}
-
-class Telemetry {
-  constructor(config) { this.config = config; this.listeners = new Set(); this.timer = null; }
-  subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  start() {
-    if (!this.config?.enabled || this.timer) return;
-    const poll = async () => {
-      try {
-        const data = await fetchTelemetrySnapshot(this.config);
-        this.listeners.forEach((fn) => fn(data));
-      } catch {}
-    };
-    poll();
-    this.timer = setInterval(poll, Math.max(3000, this.config.refreshMs || 5000));
-  }
-  stop() { clearInterval(this.timer); this.timer = null; }
+  destroy() { this.cleanups.forEach((fn) => fn()); this.intervals.forEach(clearInterval); this.cleanups = []; this.intervals = []; }
 }
 
 class Dashboard {
-  constructor(config, storage, telemetry) {
-    this.config = config;
-    this.storage = storage;
-    this.telemetry = telemetry;
-    this.grid = $('widgetGrid');
-    this.widgets = [];
+  constructor() { this.widgets = []; this.storage = this.loadLocal(); }
+  get canManageWorkspace() { return ['owner', 'admin'].includes(state.role) && state.dashboard === 'operations'; }
+  loadLocal() { try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '{}'); } catch { return {}; } }
+  saveLocal() { localStorage.setItem(LOCAL_KEY, JSON.stringify({ theme: state.theme, visual: state.visual, consoleMode: state.consoleMode, dashboard: state.dashboard, layouts: this.storage.layouts || {} })); }
+  currentLayout() { const base = structuredClone(layouts[state.dashboard] || layouts.operations); const saved = this.storage.layouts?.[state.dashboard]; if (Array.isArray(saved)) base.widgets = saved; return base; }
+  async render() {
+    this.widgets.forEach((widget) => widget.destroy()); this.widgets = []; const grid = $('widgetGrid'); grid.replaceChildren();
+    const layout = this.currentLayout(); $('statusDashboard').textContent = layout.label; $('dashboardSelect').value = state.dashboard;
+    layout.widgets.filter((item) => viewFilter(state.view, item.type)).forEach((config) => { const Type = widgetClasses[config.type]; if (!Type) return; const widget = new Type(config, this); this.widgets.push(widget); grid.append(widget.render()); });
+    $('statusEdit').textContent = this.canManageWorkspace ? 'Workspace controls enabled' : 'View only'; $('statusRole').textContent = state.role; $('statusOrg').textContent = state.organization.name || 'Company Workspace'; $('metricMode').textContent = state.consoleMode ? 'CONSOLE' : 'GLOW';
   }
-
-  get activeDashboard() { return this.config.dashboards[this.config.activeDashboardId] || this.config.dashboards.operations; }
-  get canEdit() { return this.config.activeRole === 'admin' && this.activeDashboard.role === 'admin'; }
-
-  get viewTypes() {
-    return {
-      Overview: null,
-      Automations: ['automations'],
-      Workflow: ['activity', 'githubProjects', 'calendar'],
-      Devices: ['serverStatus', 'weather'],
-      Analytics: ['kpi', 'activity'],
-      Settings: []
-    }[this.view || 'Overview'];
-  }
-
-  setView(view) {
-    this.view = view;
-    this.render();
-  }
-
   moveWidget(sourceId, targetId) {
-    if (!this.canEdit || sourceId === targetId) return;
-    const widgets = this.activeDashboard.widgets;
-    const source = widgets.findIndex((w) => w.id === sourceId);
-    const target = widgets.findIndex((w) => w.id === targetId);
-    if (source < 0 || target < 0) return;
-    [widgets[source].position, widgets[target].position] = [widgets[target].position, widgets[source].position];
-    [widgets[source], widgets[target]] = [widgets[target], widgets[source]];
-    this.render();
-    this.persist();
+    if (!this.canManageWorkspace || sourceId === targetId) return; const layout = this.currentLayout(); const source = layout.widgets.findIndex((x) => x.id === sourceId); const target = layout.widgets.findIndex((x) => x.id === targetId);
+    if (source < 0 || target < 0) return; const item = layout.widgets.splice(source, 1)[0]; layout.widgets.splice(target, 0, item); this.storage.layouts ||= {}; this.storage.layouts[state.dashboard] = layout.widgets; this.saveLocal(); this.render(); notify('Workspace layout saved');
   }
-
-  persist() { this.storage.save(this.config); updateStatus(this); }
-
-  render() {
-    this.widgets.forEach((widget) => widget.destroy());
-    this.widgets = [];
-    this.grid.replaceChildren();
-
-    this.activeDashboard.widgets
-      .filter((cfg) => cfg.role !== 'admin' || this.config.activeRole === 'admin')
-      .filter((cfg) => !this.viewTypes || this.viewTypes.includes(cfg.type))
-      .forEach((cfg) => {
-        const Type = registry[cfg.type];
-        if (!Type) return;
-        const widget = new Type(cfg, this);
-        this.widgets.push(widget);
-        this.grid.appendChild(widget.render());
-      });
-
-    updateStatus(this);
-  }
-
-  setDashboard(id) {
-    if (!this.config.dashboards[id]) return;
-    this.config.activeDashboardId = id;
-    this.render();
-    this.persist();
-  }
-
-  setRole(role) {
-    this.config.activeRole = role;
-    this.render();
-    this.persist();
-  }
-
-  removeWidget(id) {
-    this.activeDashboard.widgets = this.activeDashboard.widgets.filter((w) => w.id !== id);
-    this.render();
-    this.persist();
-  }
-
   addWidget(type) {
-    const titles = {
-      kpi: 'Business Pulse', incidents: 'Incident Center', automations: 'Automation Queue',
-      activity: 'Team Activity', calendar: 'Calendar', weather: 'Weather',
-      serverStatus: 'Service Health', githubProjects: 'Release Pipelines'
-    };
-    const n = this.activeDashboard.widgets.length;
-    this.activeDashboard.widgets.push({
-      id: `${type}-${Date.now()}`, type, title: titles[type] || 'New Module',
-      position: { x: 1, y: 7 + n, w: 4, h: 2 }, role: 'viewer'
-    });
-    this.render();
-    this.persist();
+    if (!this.canManageWorkspace) return; const titles = { kpi: 'Business KPIs', incidents: 'Incident Center', automations: 'Automation Queue', activity: 'Team Activity', calendar: 'Calendar', weather: 'Local Conditions', serverStatus: 'Service Health', githubProjects: 'Release Pipelines' };
+    const layout = this.currentLayout(); const y = Math.max(...layout.widgets.map((item) => item.y + item.h), 0) + 1; layout.widgets.push({ id: type + '-' + Date.now(), type, title: titles[type] || type, x: 1, y, w: 4, h: 2 }); this.storage.layouts ||= {}; this.storage.layouts[state.dashboard] = layout.widgets; this.saveLocal(); this.render();
   }
+  removeWidget(id) { if (!this.canManageWorkspace) return; const layout = this.currentLayout(); layout.widgets = layout.widgets.filter((item) => item.id !== id); this.storage.layouts ||= {}; this.storage.layouts[state.dashboard] = layout.widgets; this.saveLocal(); this.render(); }
 }
 
-function updateStatus(dashboard) {
-  const dash = dashboard.activeDashboard;
-  $('dashboardSelect').value = dashboard.config.activeDashboardId;
-  $('roleSelect').value = dashboard.config.activeRole;
-  $('statusDashboard').textContent = dash.label;
-  $('statusRole').textContent = dashboard.config.activeRole;
-  $('statusEdit').textContent = dashboard.canEdit ? 'Admin controls active' : 'View only';
-  $('statusOrg').textContent = dashboard.config.organization?.name || 'Your Company';
-  $('metricMode').textContent = dashboard.config.consoleMode ? 'CONSOLE' : 'GLOW';
+const dashboard = new Dashboard();
+function viewFilter(view, type) { const map = { Overview: null, Automations: ['automations'], Workflow: ['activity', 'githubProjects', 'calendar'], Devices: ['serverStatus', 'weather'], Analytics: ['kpi', 'activity'], Settings: [] }; return !map[view] || map[view].includes(type); }
+
+async function api(path, options = {}) {
+  const method = options.method || 'GET'; const headers = new Headers(options.headers || {});
+  if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  if (!['GET', 'HEAD'].includes(method) && state.csrf) headers.set('X-Glowhaven-CSRF', state.csrf);
+  const response = await fetch(path, { ...options, headers, credentials: 'same-origin' }); let data = {}; try { data = await response.json(); } catch {}
+  if (!response.ok) throw new Error(data.error || 'Request failed'); return data;
 }
 
-function notify(message) {
-  const toast = $('systemToast');
-  toast.textContent = message;
-  toast.classList.add('show');
-  clearTimeout(notify.timer);
-  notify.timer = setTimeout(() => toast.classList.remove('show'), 2800);
+function notify(message) { const toast = $('systemToast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(notify.timer); notify.timer = setTimeout(() => toast.classList.remove('show'), 2800); }
+function integration(kind) { return state.integrations.find((item) => item.kind === kind) || { kind, settings: {} }; }
+function setValue(id, value) { const element = $(id); if (element) element.value = value ?? ''; }
+
+async function refreshWorkspace() {
+  try { const telemetry = await fetchTelemetrySnapshot(); $('metricAvailability').textContent = telemetry.metrics.availability; $('metricLatency').textContent = telemetry.metrics.latency; $('metricAlerts').textContent = telemetry.metrics.alerts; } catch {}
+  await Promise.allSettled(dashboard.widgets.map((widget) => widget.updateData?.()));
 }
 
-function downloadConfig(config) {
-  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `glowhaven-dashboard-${Date.now()}.json`; a.click();
-  URL.revokeObjectURL(url);
+function loadSettings() {
+  setValue('settingsOrg', state.organization.name); const weather = integration('weather').settings?.location || {}; setValue('settingsCity', weather.city); setValue('settingsLat', weather.lat); setValue('settingsLon', weather.lon); setValue('settingsWeatherUnits', integration('weather').settings?.units || 'imperial');
+  setValue('settingsServices', (integration('services').settings?.endpoints || []).map((x) => typeof x === 'string' ? x : x.url).filter(Boolean).join('\n'));
+  setValue('settingsRepos', (integration('github').settings?.repositories || []).map((x) => x.owner + '/' + x.repo).join('\n')); setValue('settingsKpi', integration('kpi').endpoint); setValue('settingsIncidents', integration('incidents').endpoint); setValue('settingsAutomations', integration('automations').endpoint); setValue('settingsActivity', integration('activity').endpoint);
+  setValue('settingsCalendarProvider', integration('calendar').settings?.provider || 'none'); setValue('settingsCalendarGithubOrg', integration('calendar').settings?.org); setValue('settingsCalendarId', integration('calendar').settings?.calendarId); setValue('settingsCalendarEndpoint', integration('calendar').endpoint);
 }
 
-async function init() {
-  const modules = await Promise.all([
-    import('./widgets/calendar.js'), import('./widgets/weather.js'),
-    import('./widgets/serverStatus.js'), import('./widgets/githubProjects.js'),
-    import('./widgets/operations.js')
-  ]);
-
-  Object.assign(registry, {
-    calendar: modules[0].default, weather: modules[1].default,
-    serverStatus: modules[2].default, githubProjects: modules[3].default,
-    kpi: modules[4].KpiWidget, incidents: modules[4].IncidentWidget,
-    automations: modules[4].AutomationWidget, activity: modules[4].ActivityWidget
-  });
-
-  const storage = new Storage();
-  const config = storage.load();
-  const telemetry = new Telemetry(config.realtime);
-  const dashboard = new Dashboard(config, storage, telemetry);
-  dashboard.view = 'Overview';
-
-  document.documentElement.dataset.theme = config.theme;
-  document.documentElement.dataset.visual = config.visual;
-  document.body.classList.toggle('console-mode', config.consoleMode);
-
-  dashboard.render();
-  telemetry.subscribe((data) => {
-    if (data?.metrics) {
-      $('metricAvailability').textContent = data.metrics.availability || 'N/A';
-      $('metricLatency').textContent = data.metrics.latency || 'N/A';
-      $('metricAlerts').textContent = data.metrics.alerts || 'N/A';
-    }
-  });
-  telemetry.start();
-
-  $('dashboardSelect').addEventListener('change', (e) => dashboard.setDashboard(e.target.value));
-  $('roleSelect').addEventListener('change', (e) => dashboard.setRole(e.target.value));
-  $('themeToggle').addEventListener('click', () => {
-    config.theme = config.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = config.theme; dashboard.persist();
-  });
-  $('neonToggle').addEventListener('click', () => {
-    config.visual = config.visual === 'neon' ? 'minimal' : 'neon';
-    document.documentElement.dataset.visual = config.visual; dashboard.persist();
-  });
-  $('consoleToggle').addEventListener('click', () => {
-    config.consoleMode = !config.consoleMode;
-    document.body.classList.toggle('console-mode', config.consoleMode); dashboard.persist();
-  });
-  $('exportConfig').addEventListener('click', () => { downloadConfig(config); notify('Configuration exported'); });
-  $('importConfig').addEventListener('click', () => $('importInput').click());
-  $('importInput').addEventListener('change', async (e) => {
-    try {
-      const file = e.target.files[0];
-      if (!file) return;
-      const imported = JSON.parse(await file.text());
-      Object.assign(config, mergeConfig(clone(DEFAULT_CONFIG), imported));
-      dashboard.render(); dashboard.persist(); notify('Configuration imported');
-    } catch { notify('That configuration file is invalid'); }
-    e.target.value = '';
-  });
-  function populateSettings() {
-    $('settingsOrg').value = config.organization?.name || '';
-    const location = config.dataSources.weather?.openMeteo?.location || {};
-    $('settingsCity').value = location.city || '';
-    $('settingsLat').value = location.lat ?? '';
-    $('settingsLon').value = location.lon ?? '';
-    $('settingsServices').value = (config.dataSources.serverStatus?.endpoints || []).map((entry) => typeof entry === 'string' ? entry : entry.url).filter(Boolean).join('\\n');
-    $('settingsRepos').value = (config.dataSources.github?.repositories || []).map((entry) => `${entry.owner}/${entry.repo}`).join('\\n');
-    $('settingsGithubToken').value = config.dataSources.github?.token || '';
-    $('settingsCalendarProvider').value = config.dataSources.calendar?.provider || 'none';
-    $('settingsCalendarGithubOrg').value = config.dataSources.calendar?.github?.org || '';
-    $('settingsCalendarId').value = config.dataSources.calendar?.google?.calendarId || '';
-    $('settingsCalendarKey').value = config.dataSources.calendar?.google?.apiKey || '';
-    $('settingsCalendarOutlook').value = config.dataSources.calendar?.outlook?.endpoint || '';
-    $('settingsCalendarOutlookToken').value = config.dataSources.calendar?.outlook?.token || '';
-    $('settingsKpi').value = config.dataSources.kpi?.endpoint || '';
-    $('settingsIncidents').value = config.dataSources.incidents?.endpoint || '';
-    $('settingsAutomations').value = config.dataSources.automations?.endpoint || '';
-    $('settingsActivity').value = config.dataSources.activity?.endpoint || '';
-  }
-
-  function saveSettings() {
-    const services = $('settingsServices').value.split(/\\n/).map((url) => url.trim()).filter(Boolean).map((url) => ({ url }));
-    const repositories = $('settingsRepos').value.split(/\\n/).map((line) => line.trim()).filter(Boolean).map((value) => {
-      const [owner, ...rest] = value.split('/');
-      return { owner, repo: rest.join('/') };
-    }).filter((entry) => entry.owner && entry.repo);
-
-    config.organization.name = $('settingsOrg').value.trim() || 'Your Company';
-    config.dataSources.serverStatus.endpoints = services;
-    config.dataSources.github.repositories = repositories;
-    config.dataSources.github.token = $('settingsGithubToken').value.trim();
-    config.dataSources.activity.token = config.dataSources.github.token;
-
-    const weather = config.dataSources.weather.openMeteo;
-    const lat = Number($('settingsLat').value);
-    const lon = Number($('settingsLon').value);
-    weather.location = {
-      city: $('settingsCity').value.trim(),
-      lat: Number.isFinite(lat) ? lat : weather.location.lat,
-      lon: Number.isFinite(lon) ? lon : weather.location.lon
-    };
-
-    const calendarProvider = $('settingsCalendarProvider').value;
-    config.dataSources.calendar.provider = calendarProvider;
-    config.dataSources.calendar.github.org = $('settingsCalendarGithubOrg').value.trim();
-    config.dataSources.calendar.google.calendarId = $('settingsCalendarId').value.trim();
-    config.dataSources.calendar.google.apiKey = $('settingsCalendarKey').value.trim();
-    config.dataSources.calendar.outlook.endpoint = $('settingsCalendarOutlook').value.trim();
-    config.dataSources.calendar.outlook.token = $('settingsCalendarOutlookToken').value.trim();
-
-    config.dataSources.kpi.endpoint = $('settingsKpi').value.trim();
-    config.dataSources.incidents.endpoint = $('settingsIncidents').value.trim();
-    config.dataSources.automations.endpoint = $('settingsAutomations').value.trim();
-    config.dataSources.activity.endpoint = $('settingsActivity').value.trim();
-    if (config.dataSources.activity.endpoint) {
-      config.dataSources.activity.provider = 'http';
-    } else if (repositories.length) {
-      config.dataSources.activity.provider = 'github';
-      config.dataSources.activity.github.org = repositories[0].owner;
-    } else {
-      config.dataSources.activity.provider = 'none';
-      config.dataSources.activity.github.org = '';
-    }
-
-    dashboard.render();
-    dashboard.persist();
-    $('settingsDialog').close();
-    notify('Company settings saved');
-  }
-
-  $('settingsButton').addEventListener('click', () => {
-    populateSettings();
-    $('settingsDialog').showModal();
-  });
-  $('settingsCancel').addEventListener('click', () => $('settingsDialog').close());
-  $('settingsSave').addEventListener('click', saveSettings);
-    $('addWidget').addEventListener('click', () => dashboard.addWidget($('widgetType').value));
-  $('searchInput').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    dashboard.widgets.forEach((w) => {
-      w.element.hidden = !!q && !`${w.config.title} ${w.config.type}`.toLowerCase().includes(q);
-    });
-  });
-  $('refreshAll').addEventListener('click', async () => {
-    await Promise.all(dashboard.widgets.map((w) => w.updateData?.()));
-    notify('All modules refreshed');
-  });
-  document.querySelectorAll('.nav-item').forEach((btn) => btn.addEventListener('click', () => {
-    if (btn.id === 'settingsButton') return;
-    document.querySelectorAll('.nav-item').forEach((x) => x.classList.remove('active'));
-    btn.classList.add('active');
-    dashboard.setView(btn.dataset.view || btn.textContent);
-    notify(`${btn.dataset.view || btn.textContent} view selected`);
-  }));
-  $('launchButton').addEventListener('click', () => {
-    populateSettings();
-    $('settingsDialog').showModal();
-  });
+async function saveIntegration(kind, payload) { return api('/api/integrations/' + kind, { method: 'PUT', body: JSON.stringify(payload) }); }
+async function saveSettings() {
+  const repos = $('settingsRepos').value.split('\n').map((x) => x.trim()).filter(Boolean).map((x) => { const parts = x.split('/'); return { owner: parts.shift(), repo: parts.join('/') }; }).filter((x) => x.owner && x.repo);
+  await api('/api/config', { method: 'PUT', body: JSON.stringify({ organization: { name: $('settingsOrg').value.trim() } }) });
+  await saveIntegration('weather', { settings: { units: $('settingsWeatherUnits').value, location: { city: $('settingsCity').value.trim(), lat: Number($('settingsLat').value), lon: Number($('settingsLon').value) } } });
+  await saveIntegration('services', { settings: { endpoints: $('settingsServices').value.split('\n').map((x) => x.trim()).filter(Boolean).map((url) => ({ url })) } });
+  const githubToken = $('settingsGithubToken').value; await saveIntegration('github', { settings: { repositories: repos }, authType: 'bearer', ...(githubToken ? { secret: githubToken } : {}) });
+  await saveIntegration('kpi', { endpoint: $('settingsKpi').value.trim() }); await saveIntegration('incidents', { endpoint: $('settingsIncidents').value.trim() }); await saveIntegration('automations', { endpoint: $('settingsAutomations').value.trim() }); await saveIntegration('activity', { endpoint: $('settingsActivity').value.trim(), settings: { provider: $('settingsActivity').value.trim() ? 'http' : 'none' } });
+  await saveIntegration('calendar', { endpoint: $('settingsCalendarEndpoint').value.trim(), settings: { provider: $('settingsCalendarProvider').value, org: $('settingsCalendarGithubOrg').value.trim(), calendarId: $('settingsCalendarId').value.trim() } });
+  const config = await api('/api/config'); state.organization = config.organization; state.integrations = config.integrations; $('companyName').textContent = state.organization.name || 'Company Workspace'; $('settingsDialog').close(); await dashboard.render(); await refreshWorkspace(); notify('Company settings saved');
 }
 
-init().catch((error) => {
-  console.error(error);
-  notify('Glowhaven failed to initialize');
-});
+async function loadUsers() { if (!['owner', 'admin'].includes(state.role)) return; const users = await api('/api/users'); const list = $('userList'); list.replaceChildren(...users.map((user) => { const row = document.createElement('li'); const a = document.createElement('span'); const b = document.createElement('span'); a.textContent = user.email; b.textContent = user.role; row.append(a, b); return row; })); }
+async function createUser() { await api('/api/users', { method: 'POST', body: JSON.stringify({ email: $('newUserEmail').value.trim(), password: $('newUserPassword').value, role: $('newUserRole').value }) }); $('newUserEmail').value = ''; $('newUserPassword').value = ''; await loadUsers(); notify('User account created'); }
+async function loadAudit() { if (!['owner', 'admin'].includes(state.role)) return; const rows = await api('/api/audit?limit=100'); const list = $('auditList'); list.replaceChildren(...rows.map((entry) => { const row = document.createElement('li'); const a = document.createElement('span'); const b = document.createElement('span'); a.textContent = entry.action; b.textContent = new Date(entry.timestamp).toLocaleString(); row.append(a, b); return row; })); }
+
+function bindEvents() {
+  $('loginForm').addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: $('loginEmail').value, password: $('loginPassword').value }) }); state.csrf = data.csrf; await authenticated(); } catch (error) { notify(error.message); } });
+  $('setupForm').addEventListener('submit', async (e) => { e.preventDefault(); try { if ($('setupPassword').value !== $('setupPasswordConfirm').value) throw new Error('Passwords do not match'); const data = await api('/api/auth/setup', { method: 'POST', body: JSON.stringify({ email: $('setupEmail').value, password: $('setupPassword').value }) }); state.csrf = data.csrf; await authenticated(); } catch (error) { notify(error.message); } });
+  $('ssoButton').addEventListener('click', () => { window.location.href = '/api/auth/oidc/start'; }); $('logoutButton').addEventListener('click', async () => { try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } finally { location.reload(); } });
+  $('settingsButton').addEventListener('click', async () => { loadSettings(); await Promise.allSettled([loadUsers(), loadAudit()]); $('settingsDialog').showModal(); }); $('settingsCancel').addEventListener('click', () => $('settingsDialog').close()); $('settingsSave').addEventListener('click', () => saveSettings().catch((e) => notify(e.message))); $('userCreate').addEventListener('click', () => createUser().catch((e) => notify(e.message)));
+  $('dashboardSelect').addEventListener('change', async (e) => { state.dashboard = e.target.value; dashboard.saveLocal(); await dashboard.render(); }); $('themeToggle').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = state.theme; dashboard.saveLocal(); });
+  $('neonToggle').addEventListener('click', () => { state.visual = state.visual === 'neon' ? 'minimal' : 'neon'; document.documentElement.dataset.visual = state.visual; dashboard.saveLocal(); }); $('consoleToggle').addEventListener('click', () => { state.consoleMode = !state.consoleMode; document.body.classList.toggle('console-mode', state.consoleMode); dashboard.saveLocal(); }); $('refreshAll').addEventListener('click', () => refreshWorkspace().then(() => notify('Workspace refreshed')).catch((e) => notify(e.message))); $('addWidget').addEventListener('click', () => dashboard.addWidget($('widgetType').value));
+  $('searchInput').addEventListener('input', (e) => { const q = e.target.value.trim().toLowerCase(); dashboard.widgets.forEach((w) => { w.element.hidden = Boolean(q) && !(w.config.title + ' ' + w.config.type).toLowerCase().includes(q); }); });
+  document.querySelectorAll('.nav-item').forEach((button) => button.addEventListener('click', async () => { document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active')); button.classList.add('active'); state.view = button.dataset.view; await dashboard.render(); }));
+}
+
+async function loadWidgets() {
+  const modules = await Promise.all([import('./widgets/calendar.js'), import('./widgets/weather.js'), import('./widgets/serverStatus.js'), import('./widgets/githubProjects.js'), import('./widgets/operations.js')]);
+  widgetClasses.calendar = modules[0].default; widgetClasses.weather = modules[1].default; widgetClasses.serverStatus = modules[2].default; widgetClasses.githubProjects = modules[3].default; widgetClasses.kpi = modules[4].KpiWidget; widgetClasses.incidents = modules[4].IncidentWidget; widgetClasses.automations = modules[4].AutomationWidget; widgetClasses.activity = modules[4].ActivityWidget;
+}
+
+async function authenticated() {
+  const session = await api('/api/auth/session'); state.user = session.user; state.role = session.user.role; state.csrf = session.csrf;
+  const config = await api('/api/config'); state.organization = config.organization || state.organization; state.integrations = config.integrations || []; $('companyName').textContent = state.organization.name || 'Company Workspace'; $('statusOrg').textContent = state.organization.name || 'Company Workspace'; $('userEmail').textContent = state.user.email; $('userRole').textContent = state.role;
+  $('appShell').hidden = false; $('authScreen').hidden = true; await loadWidgets(); await dashboard.render(); await refreshWorkspace();
+}
+
+async function boot() {
+  const local = dashboard.storage; state.theme = local.theme || 'dark'; state.visual = local.visual || 'neon'; state.consoleMode = Boolean(local.consoleMode); state.dashboard = local.dashboard || 'operations'; document.documentElement.dataset.theme = state.theme; document.documentElement.dataset.visual = state.visual; document.body.classList.toggle('console-mode', state.consoleMode);
+  bindEvents(); const session = await api('/api/auth/session'); if (session.authenticated) { state.csrf = session.csrf; await authenticated(); return; } $('authScreen').hidden = false; $('appShell').hidden = true; $('loginForm').hidden = session.setupRequired; $('setupForm').hidden = !session.setupRequired; $('ssoButton').hidden = !session.oidcEnabled;
+}
+
+boot().catch((error) => { console.error(error); notify(error.message || 'Glowhaven could not start'); });
