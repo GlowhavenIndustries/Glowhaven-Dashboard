@@ -18,11 +18,32 @@ test('private IPv4 and IPv6 ranges are blocked', () => {
 test('production remote URL validation blocks private targets and URL credentials', async () => {
   const oldNodeEnv = process.env.NODE_ENV;
   const oldAllow = process.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK;
-  process.env.NODE_ENV = 'production';
-  delete process.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK;
-  await assert.rejects(() => validateRemoteUrl('https://127.0.0.1/internal'), /Private network/);
-  await assert.rejects(() => validateRemoteUrl('https://user:pass@example.com/'), /credentials/);
-  process.env.NODE_ENV = oldNodeEnv;
-  if (oldAllow === undefined) delete process.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK;
-  else process.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK = oldAllow;
+  try {
+    process.env.NODE_ENV = 'production';
+    delete process.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK;
+    await assert.rejects(() => validateRemoteUrl('https://127.0.0.1/internal'), /Private network/);
+    await assert.rejects(() => validateRemoteUrl('https://user:pass@example.com/'), /credentials/);
+    await assert.rejects(() => validateRemoteUrl('https://example.com/?token=secret'), /credentials/);
+  } finally {
+    if (oldNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = oldNodeEnv;
+    if (oldAllow === undefined) delete process.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK;
+    else process.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK = oldAllow;
+  }
+});
+
+
+test('security headers include browser isolation controls', async () => {
+  const { securityHeaders } = await import('../server/security.js');
+  const oldNodeEnv = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = 'production';
+    const headers = securityHeaders();
+    assert.match(headers['Content-Security-Policy'], /frame-ancestors 'none'/);
+    assert.equal(headers['X-Frame-Options'], 'DENY');
+    assert.match(headers['Strict-Transport-Security'], /includeSubDomains/);
+  } finally {
+    if (oldNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = oldNodeEnv;
+  }
 });
