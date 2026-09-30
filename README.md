@@ -91,9 +91,10 @@ The browser renders the operational UI. The server owns credentials and protecte
 Start the server:
 
 ```bash
-npm install
 npm start
 ```
+
+For local development, use `npm run dev`.
 
 Open:
 
@@ -135,6 +136,15 @@ Run behind HTTPS in production.
 
 Persistent application data lives under `GLOWHAVEN_DATA_DIR`, which should be backed by a protected persistent volume.
 
+Docker deployment is included:
+
+```bash
+export GLOWHAVEN_MASTER_KEY="$(openssl rand -hex 32)"
+docker compose up -d --build
+```
+
+Place the service behind an HTTPS reverse proxy in production.
+
 ## Roles
 
 **Owner** has full administration access.
@@ -146,6 +156,12 @@ Persistent application data lives under `GLOWHAVEN_DATA_DIR`, which should be ba
 **Viewer** has read-only operational access.
 
 Role checks are enforced by the backend rather than by the browser.
+
+## Security operations
+
+Administrative actions are visible under Company settings in the Audit trail section.
+
+The server stores password hashes, session records, encrypted integration secrets, and audit records under the configured runtime data directory. Runtime data is excluded from Git.
 
 ## Development
 
