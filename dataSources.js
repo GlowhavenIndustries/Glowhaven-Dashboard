@@ -1,10 +1,5 @@
 const DEFAULT_TIMEOUT = 8000;
 const DEFAULT_RETRIES = 2;
-const DEFAULT_GITHUB_REPOS = [
-  { owner: 'openai', repo: 'openai-cookbook' },
-  { owner: 'vercel', repo: 'next.js' },
-];
-
 const JSON_HEADERS = {
   Accept: 'application/json',
 };
@@ -230,8 +225,8 @@ export async function fetchCalendarEvents(config = {}) {
     }));
   }
 
-  if (provider === 'github') {
-    const org = config.github?.org || 'openai';
+  if (provider === 'github' && config.github?.org) {
+    const org = config.github.org;
     const items = await fetchJson(
       `https://api.github.com/orgs/${encodeURIComponent(org)}/events?per_page=5`,
     );
