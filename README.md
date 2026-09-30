@@ -1,149 +1,212 @@
 # Glowhaven Dashboard
 
-Glowhaven Dashboard is a local-first operations platform for companies that want one customizable workspace for monitoring, coordination, and future automation.
+Glowhaven Dashboard is a secure company operations platform for monitoring, coordination, integrations, and controlled automation.
 
-It is designed to be company-agnostic. Configure your organization, data sources, dashboards, and modules instead of rebuilding the app for every team.
+It provides a shared operational surface for teams while keeping authentication, authorization, credentials, and audit data on the application server.
 
-## Current platform
+## Platform capabilities
 
-Glowhaven combines common operational signals into one command surface:
+- Business KPIs from company API endpoints
+- Incident monitoring
+- Automation inventory and controlled execution
+- Team activity feeds
+- GitHub Actions repository monitoring
+- Service health monitoring
+- Calendar integrations
+- Weather monitoring
+- Multiple operational workspaces
+- Search and modular dashboard layout
+- Role-aware controls
+- Server-backed company settings
+- Tamper-evident audit logging
 
-- **Business KPIs** for revenue, orders, tickets, usage, and other company metrics
-- **Incident Center** for operational failures and attention items
-- **Automation Queue** for repeatable actions and future automation adapters
-- **Team Activity** for shared workspace activity
-- **GitHub Pipelines** for monitoring configured GitHub Actions repositories
-- **Service Health** for endpoint uptime, failures, and latency
-- **Calendar** with GitHub, Google Calendar, and compatible Outlook support
-- **Weather** with Open-Meteo support, including temperature, conditions, wind, AQI, and UV
-- **Dashboards** for separate workspaces such as Operations and Team
-- **Access modes** with local admin editing and viewer UI modes
-- **Search and modules** for filtering and extending workspaces
-- **Import and export** for portable JSON configuration
-- **Themes** with dark, light, neon, minimal, and console presentation modes
-- **Responsive layout** for desktop, tablet, and mobile
+## Security architecture
 
-## Why it exists
+### Enterprise authentication
 
-Most companies spread important information across separate dashboards, monitoring tools, project systems, calendars, and internal pages.
+Glowhaven supports:
 
-Glowhaven provides a single operational surface where teams can bring those signals together and eventually take action from the same workspace.
+- Local administrator bootstrap with a memory-hard scrypt password hash
+- Secure server-side sessions with expiring random session tokens
+- Optional OIDC single sign-on with PKCE
+- Role mapping for owner, admin, operator, and viewer accounts
 
-The goal is not to replace every specialized system. The goal is to give a company one place to understand what is happening.
+The built-in role selector is no longer a security boundary. Protected actions are authorized on the server.
 
-## Architecture
+### Server-side secret storage
 
-### App shell
+Integration credentials are never stored in browser localStorage.
 
-A state-driven dashboard controller manages:
+Secrets are encrypted on the server using AES-256-GCM with a deployment-specific master key. The browser receives integration metadata and masked configuration only.
 
-- organization configuration
-- workspaces
-- roles
-- module registration
-- local persistence
-- refresh actions
-- configuration import and export
+Production deployments must provide `GLOWHAVEN_MASTER_KEY` as a 32-byte key encoded as 64 hexadecimal characters.
 
-### Widget system
+### Hardened authorization
 
-Widgets are independently loaded ES modules.
+Mutating API requests require:
 
-Current widget types:
+- an authenticated session
+- an appropriate server-side role
+- a matching same-origin request
+- a valid CSRF token
 
-- `calendar`
-- `weather`
-- `serverStatus`
-- `githubProjects`
-- `kpi`
-- `incidents`
-- `automations`
-- `activity`
+Authentication attempts are rate limited.
 
-The operations widgets are adapter-ready. The interface is available now, while real company systems can be connected through dedicated data adapters.
+Remote integration targets are validated. Localhost targets are blocked, and production private-network access is disabled unless the deployment explicitly enables it.
 
-### Data layer
+Production responses include security headers and HSTS.
 
-`dataSources.js` provides shared:
+### Audit logging
 
-- request timeouts
-- retries
-- response handling
-- normalization
-- source-specific fetchers
+Administrative changes, authentication events, user creation, integration changes, organization changes, and automation execution are written to a server-side append-only audit log.
 
-### Local-first configuration
+Each audit record includes a cryptographic hash linked to the previous record so unexpected changes can be detected.
 
-Workspace configuration is stored in browser `localStorage` and can be exported or imported as JSON.
+## Application architecture
 
-Local storage is not a replacement for enterprise authentication, authorization, secrets management, or encrypted server-side storage. The built-in admin/viewer selector is a UI mode, not enterprise authentication.
-
-## Configure Glowhaven for a company
-
-The default configuration is intentionally unconfigured for company data. Connect your own systems from Settings.
-
-Customize:
-
-- organization name
-- dashboards
-- widget layout
-- GitHub repositories
-- service health endpoints
-- weather location
-- calendar provider
-- refresh intervals
-
-Configuration can be changed in `app.js` or imported through the dashboard.
-
-## Run locally
-
-Start a static server from the repository root:
-
-```bash
-python -m http.server 5173
+```
+Browser
+  |
+  | authenticated session + CSRF protected API
+  v
+Glowhaven server
+  |
+  +-- Authentication
+  +-- Authorization
+  +-- Encrypted secret store
+  +-- Audit log
+  +-- Integration proxy
+  |
+  +-- GitHub
+  +-- Company APIs
+  +-- Service health endpoints
+  +-- Calendar providers
+  +-- Open-Meteo
 ```
 
-Then open:
+The browser renders the operational UI. The server owns credentials and protected actions.
+
+## Company setup
+
+Start the server:
+
+```bash
+npm install
+npm start
+```
+
+Open:
 
 `http://localhost:5173`
 
-A modern browser with ES module support is required.
+On the first launch, Glowhaven asks for the initial administrator account.
 
-## Test and validate
+Then open **Company settings** to configure:
 
-Install Node.js, then run:
+- company name and timezone
+- weather location
+- service health URLs
+- GitHub repositories and access token
+- KPI endpoint
+- incident endpoint
+- automation endpoint
+- activity endpoint
+- calendar provider
+
+Credentials entered through Company settings are sent to the authenticated server and stored encrypted there.
+
+## Production configuration
+
+Copy `.env.example` into your deployment environment and provide a strong master key.
+
+For enterprise SSO, configure:
+
+- `OIDC_ISSUER`
+- `OIDC_CLIENT_ID`
+- `OIDC_CLIENT_SECRET`
+- `OIDC_REDIRECT_URI`
+
+Optional role mapping variables:
+
+- `OIDC_ADMIN_EMAILS`
+- `OIDC_ADMIN_GROUPS`
+
+Run behind HTTPS in production.
+
+Persistent application data lives under `GLOWHAVEN_DATA_DIR`, which should be backed by a protected persistent volume.
+
+## Roles
+
+**Owner** has full administration access.
+
+**Admin** can manage company settings, users, integrations, and audit access.
+
+**Operator** can execute permitted operational actions.
+
+**Viewer** has read-only operational access.
+
+Role checks are enforced by the backend rather than by the browser.
+
+## Development
+
+Use:
+
+```bash
+npm run dev
+```
+
+Validation:
 
 ```bash
 npm test
 npm run check
 ```
 
-`npm run check` validates JavaScript syntax across the application modules.
+GitHub Actions runs the same validation automatically on repository changes.
 
-No framework or bundler is required.
+No frontend framework or bundler is required.
 
-## Roadmap
+## Deployment
 
-Glowhaven is structured to grow into a broader operations platform.
+Glowhaven can run as a single Node.js service behind a reverse proxy or load balancer.
 
-Planned integration areas include:
+For larger deployments, the storage layer can be replaced with managed database and session infrastructure while keeping the same server API boundary.
 
-- Slack and Microsoft Teams
-- Jira and Linear
-- Google Workspace and Microsoft 365
-- Stripe and business KPI systems
-- databases and internal APIs
-- real automation execution
-- secure authentication
-- organization-level permissions
-- encrypted secrets handling
-- audit logs
-- plugin and integration management
+## Integration contract
 
-## Product direction
+Company endpoints should return JSON.
+
+Common response shapes include:
+
+```json
+{
+  "metrics": [
+    {
+      "label": "Revenue",
+      "value": "$42k",
+      "change": "+8%"
+    }
+  ]
+}
+```
+
+```json
+{
+  "incidents": [
+    {
+      "id": "incident-123",
+      "title": "API latency",
+      "status": "open",
+      "severity": "high"
+    }
+  ]
+}
+```
+
+The integration layer is intentionally generic so companies can connect existing internal systems without changing the dashboard UI.
+
+## Project direction
 
 **Monitor. Understand. Coordinate. Act.**
 
-Glowhaven Dashboard is the operating surface. A company's existing systems provide the signals and actions.
-
-Built for teams that want a flexible command center they can shape around the way they work.
+Glowhaven is the operational surface. A company's existing systems provide the business data, events, and actions.
