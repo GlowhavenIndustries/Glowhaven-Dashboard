@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { hashPassword, verifyPassword, isPrivateIp, validateRemoteUrl } from '../server/security.js';
 
 test('password hashes verify and reject wrong passwords', () => {
@@ -46,4 +47,16 @@ test('security headers include browser isolation controls', async () => {
     if (oldNodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = oldNodeEnv;
   }
+});
+
+test('static path normalization blocks path traversal', () => {
+  const checkTraversal = (pathname) => {
+    const requestPath = pathname === '/' ? '/index.html' : pathname;
+    return pathname.includes('..') || path.normalize(requestPath).replace(/\\/g, '/').split('/').includes('..');
+  };
+
+  assert.equal(checkTraversal('/widgets/../data/master.key'), true);
+  assert.equal(checkTraversal('/widgets/../server.js'), true);
+  assert.equal(checkTraversal('/widgets/calendar.js'), false);
+  assert.equal(checkTraversal('/index.html'), false);
 });
