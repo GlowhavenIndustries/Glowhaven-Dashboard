@@ -8,7 +8,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check app.js && node --check dataSources.js && node --check server/auth.js && node --check server/security.js && node --check server/storage.js && node --check server/oidc.js && node --check widgets/calendar.js && node --check widgets/weather.js && node --check widgets/serverStatus.js && node --check widgets/githubProjects.js && node --check widgets/operations.js && ! grep -R $'\\u2014' . --exclude-dir=.git --exclude-dir=data"
+    "check": "node --check server.js && node --check app.js && node --check dataSources.js && node --check server/auth.js && node --check server/security.js && node --check server/storage.js && node --check server/oidc.js && node --check server/sessionStore.js && node --check server/secretManager.js && node --check widgets/calendar.js && node --check widgets/weather.js && node --check widgets/serverStatus.js && node --check widgets/githubProjects.js && node --check widgets/operations.js && ! grep -R $'\\u2014' . --exclude-dir=.git --exclude-dir=data"
   },
   "engines": {
     "node": ">=20"

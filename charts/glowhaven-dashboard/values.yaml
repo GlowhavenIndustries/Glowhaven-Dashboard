@@ -1,0 +1,90 @@
+replicaCount: 2
+
+image:
+  repository: glowhaven/glowhaven-dashboard
+  pullPolicy: IfNotPresent
+  tag: "5.0.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext:
+  fsGroup: 10001
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 10001
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5173
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: glowhaven.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: glowhaven-tls
+      hosts:
+        - glowhaven.example.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+env:
+  NODE_ENV: production
+  GLOWHAVEN_ALLOW_PRIVATE_NETWORK: "0"
+
+redis:
+  enabled: false
+  url: "redis://glowhaven-redis:6379"
+
+externalSecrets:
+  awsSecretName: ""
+  vaultAddr: ""
+  vaultToken: ""
+  vaultSecretPath: ""
+  azureKeyVaultUrl: ""
+  azureSecretName: ""
+
+glowhavenMasterKey: ""

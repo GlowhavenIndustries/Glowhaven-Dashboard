@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { randomToken, hashToken } from './security.js';
+import { getSessionStore } from './sessionStore.js';
 
 const pending = new Map();
 const TTL = 10 * 60 * 1000;
@@ -85,11 +86,81 @@ export async function startOidc() {
   return { url: url.toString(), state };
 }
 
-function roleForClaims(claims) {
+export function extractGroups(claims) {
+  const extracted = new Set();
+
+  function processValue(val) {
+    if (val === null || val === undefined) return;
+    if (typeof val === 'string' || typeof val === 'number') {
+      const s = String(val).trim();
+      if (s) extracted.add(s);
+    } else if (Array.isArray(val)) {
+      for (const item of val) processValue(item);
+    } else if (typeof val === 'object') {
+      if (val.name) processValue(val.name);
+      if (val.id) processValue(val.id);
+      if (val.group) processValue(val.group);
+      if (val.groups) processValue(val.groups);
+      if (val.displayName) processValue(val.displayName);
+      if (val.value) processValue(val.value);
+      if (val.cn) processValue(val.cn);
+    }
+  }
+
+  if (claims) {
+    processValue(claims.groups);
+    processValue(claims.roles);
+    processValue(claims.memberOf);
+    processValue(claims.security_groups);
+    if (claims.realm_access?.roles) processValue(claims.realm_access.roles);
+    if (claims.resource_access && typeof claims.resource_access === 'object') {
+      for (const client of Object.values(claims.resource_access)) {
+        if (client?.roles) processValue(client.roles);
+      }
+    }
+  }
+
+  return Array.from(extracted);
+}
+
+export function roleForClaims(claims) {
+  const email = String(claims?.email || '').trim().toLowerCase();
   const admins = new Set(String(process.env.OIDC_ADMIN_EMAILS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean));
-  const groups = Array.isArray(claims.groups) ? claims.groups.map(String) : [];
-  const adminGroups = new Set(String(process.env.OIDC_ADMIN_GROUPS || '').split(',').map((x) => x.trim()).filter(Boolean));
-  return admins.has(String(claims.email || '').toLowerCase()) || groups.some((x) => adminGroups.has(x)) ? 'admin' : 'viewer';
+  if (admins.has(email)) return 'admin';
+
+  let mapping = null;
+  if (process.env.OIDC_GROUP_MAPPING) {
+    try { mapping = JSON.parse(process.env.OIDC_GROUP_MAPPING); } catch {}
+  }
+
+  const adminGroups = new Set([
+    ...String(process.env.OIDC_ADMIN_GROUPS || '').split(',').map((x) => x.trim()).filter(Boolean),
+    ...(Array.isArray(mapping?.admin) ? mapping.admin : []),
+  ]);
+
+  const operatorGroups = new Set([
+    ...String(process.env.OIDC_OPERATOR_GROUPS || '').split(',').map((x) => x.trim()).filter(Boolean),
+    ...(Array.isArray(mapping?.operator) ? mapping.operator : []),
+  ]);
+
+  const viewerGroups = new Set([
+    ...String(process.env.OIDC_VIEWER_GROUPS || '').split(',').map((x) => x.trim()).filter(Boolean),
+    ...(Array.isArray(mapping?.viewer) ? mapping.viewer : []),
+  ]);
+
+  const userGroups = extractGroups(claims);
+
+  for (const group of userGroups) {
+    if (adminGroups.has(group)) return 'admin';
+  }
+  for (const group of userGroups) {
+    if (operatorGroups.has(group)) return 'operator';
+  }
+  for (const group of userGroups) {
+    if (viewerGroups.has(group)) return 'viewer';
+  }
+
+  return 'viewer';
 }
 
 export async function finishOidc(state, code, appState, expectedState = '') {
@@ -121,9 +192,12 @@ export async function finishOidc(state, code, appState, expectedState = '') {
   if (!user) {
     user = { id: randomToken(16), email, role: appState.users.length ? roleForClaims(claims) : 'owner', createdAt: new Date().toISOString(), status: 'active', auth: 'oidc', externalSubject: String(claims.sub) };
     appState.users.push(user);
+  } else if (user.auth === 'oidc' && user.role !== 'owner') {
+    user.role = roleForClaims(claims);
   }
   const token = randomToken(48);
   const csrf = randomToken(24);
-  appState.sessions[hashToken(token)] = { userId: user.id, csrf, createdAt: Date.now(), expiresAt: Date.now() + 8 * 60 * 60 * 1000 };
+  const store = getSessionStore(appState);
+  await store.set(hashToken(token), { userId: user.id, csrf, createdAt: Date.now(), expiresAt: Date.now() + 8 * 60 * 60 * 1000 });
   return { user, token, csrf };
 }

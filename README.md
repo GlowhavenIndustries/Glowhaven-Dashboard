@@ -2,6 +2,7 @@
 
 > **A secure, self-hosted operations command center for modern companies.**
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Interactive_Sandbox-6366f1?style=for-the-badge&logo=rocket&logoColor=white)](https://demo.glowhaven.example.com)
 [![CI](https://github.com/GlowhavenIndustries/Glowhaven-Dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/GlowhavenIndustries/Glowhaven-Dashboard/actions/workflows/ci.yml)
 ![Node 20+](https://img.shields.io/badge/node-20%2B-111827?logo=node.js&logoColor=white)
 ![Security](https://img.shields.io/badge/security-hardened-0f766e)
@@ -120,32 +121,7 @@ The audit API verifies the chain before returning records.
 
 ## Architecture
 
-~~~text
-                    Browser
-                       |
-                       | Same-origin session
-                       | + CSRF-protected mutations
-                       v
-              +-------------------+
-              |   Glowhaven API   |
-              +-------------------+
-                 |       |       |
-        +--------+       |       +---------+
-        |                |                 |
-        v                v                 v
-   Authentication   Secret Store       Audit Log
-   Authorization    AES-256-GCM        Hash Chain
-        |
-        +---------------------------------------------+
-        |                    |                        |
-        v                    v                        v
-   Company APIs         GitHub Actions          Service Endpoints
-        |
-        +--------------------+
-                             |
-                             v
-                       Calendar / Weather
-~~~
+![Glowhaven Architecture](assets/architecture.svg)
 
 The frontend stays intentionally lightweight. There is no required frontend framework or bundler.
 
@@ -393,7 +369,7 @@ The current project favors a compact, understandable foundation that teams can e
 
 ## License
 
-No license file is currently included in this repository. Check the repository's current licensing terms before redistributing or deploying it as a commercial product.
+Glowhaven Dashboard is licensed under the [Apache License, Version 2.0](LICENSE).
 
 ---
 

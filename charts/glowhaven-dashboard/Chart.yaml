@@ -1,0 +1,15 @@
+apiVersion: v2
+name: glowhaven-dashboard
+description: Official Helm chart for Glowhaven Dashboard company operations command center
+type: application
+version: 1.0.0
+appVersion: "5.0.0"
+keywords:
+  - glowhaven
+  - operations
+  - dashboard
+  - monitoring
+  - kubernetes
+maintainers:
+  - name: Glowhaven Engineering
+    email: support@glowhaven.example.com

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "glowhaven-dashboard.fullname" . }}-config
+  labels:
+    {{- include "glowhaven-dashboard.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.env.NODE_ENV | default "production" | quote }}
+  GLOWHAVEN_ALLOW_PRIVATE_NETWORK: {{ .Values.env.GLOWHAVEN_ALLOW_PRIVATE_NETWORK | default "0" | quote }}
+  {{- if .Values.redis.enabled }}
+  REDIS_URL: {{ .Values.redis.url | quote }}
+  {{- end }}
+  {{- if .Values.externalSecrets.awsSecretName }}
+  AWS_SECRET_NAME: {{ .Values.externalSecrets.awsSecretName | quote }}
+  {{- end }}
+  {{- if .Values.externalSecrets.vaultAddr }}
+  VAULT_ADDR: {{ .Values.externalSecrets.vaultAddr | quote }}
+  VAULT_SECRET_PATH: {{ .Values.externalSecrets.vaultSecretPath | quote }}
+  {{- end }}
+  {{- if .Values.externalSecrets.azureKeyVaultUrl }}
+  AZURE_KEYVAULT_URL: {{ .Values.externalSecrets.azureKeyVaultUrl | quote }}
+  AZURE_SECRET_NAME: {{ .Values.externalSecrets.azureSecretName | quote }}
+  {{- end }}

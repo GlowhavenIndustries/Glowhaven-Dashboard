@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="100%" height="100%" style="background-color: #0f172a; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <defs>
+    <linearGradient id="grad-browser" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="grad-server" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e" />
+      <stop offset="100%" stop-color="#115e59" />
+    </linearGradient>
+    <linearGradient id="grad-sec" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </linearGradient>
+    <linearGradient id="grad-target" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+    </marker>
+  </defs>
+
+  <!-- Title Header -->
+  <text x="480" y="40" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700" letter-spacing="0.5">GLOWHAVEN DASHBOARD ARCHITECTURE &amp; SECURITY FLOW</text>
+  <text x="480" y="62" text-anchor="middle" fill="#94a3b8" font-size="12">Server-Enforced Perimeter, Encrypted Credentials &amp; Tamper-Evident Audit Chains</text>
+
+  <!-- Section Boxes -->
+  <!-- 1. Client Layer -->
+  <rect x="40" y="100" width="220" height="380" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="52" y="112" width="196" height="32" rx="6" fill="url(#grad-browser)"/>
+  <text x="150" y="133" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">CLIENT LAYER (BROWSER)</text>
+
+  <rect x="56" y="160" width="188" height="70" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="1"/>
+  <text x="150" y="182" text-anchor="middle" fill="#60a5fa" font-size="12" font-weight="600">Lightweight UI</text>
+  <text x="150" y="200" text-anchor="middle" fill="#94a3b8" font-size="11">Vanilla JS &amp; CSS Modules</text>
+  <text x="150" y="216" text-anchor="middle" fill="#94a3b8" font-size="11">Zero Third-Party Bundles</text>
+
+  <rect x="56" y="245" width="188" height="85" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="1"/>
+  <text x="150" y="267" text-anchor="middle" fill="#60a5fa" font-size="12" font-weight="600">Security Controls</text>
+  <text x="150" y="286" text-anchor="middle" fill="#cbd5e1" font-size="11">• Opaque Session Cookie</text>
+  <text x="150" y="302" text-anchor="middle" fill="#cbd5e1" font-size="11">• Anti-CSRF Token</text>
+  <text x="150" y="318" text-anchor="middle" fill="#cbd5e1" font-size="11">• No Secrets Stored</text>
+
+  <rect x="56" y="345" width="188" height="115" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="1"/>
+  <text x="150" y="367" text-anchor="middle" fill="#60a5fa" font-size="12" font-weight="600">Enterprise Workspaces</text>
+  <text x="150" y="386" text-anchor="middle" fill="#cbd5e1" font-size="11">• Incident Monitoring</text>
+  <text x="150" y="402" text-anchor="middle" fill="#cbd5e1" font-size="11">• Business KPIs &amp; Latency</text>
+  <text x="150" y="418" text-anchor="middle" fill="#cbd5e1" font-size="11">• Operational Controls</text>
+  <text x="150" y="434" text-anchor="middle" fill="#cbd5e1" font-size="11">• Role-Aware Views</text>
+
+  <!-- Arrow Client -> Server -->
+  <path d="M 260 290 L 340 290" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="6,4"/>
+  <text x="300" y="278" text-anchor="middle" fill="#38bdf8" font-size="10" font-weight="600">HTTPS / API</text>
+  <text x="300" y="306" text-anchor="middle" fill="#64748b" font-size="9">CSRF + Cookie</text>
+
+  <!-- 2. Glowhaven Server Layer -->
+  <rect x="340" y="100" width="280" height="380" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="352" y="112" width="256" height="32" rx="6" fill="url(#grad-server)"/>
+  <text x="480" y="133" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">GLOWHAVEN SERVER BOUNDARY</text>
+
+  <rect x="356" y="155" width="248" height="60" rx="8" fill="#0f172a" stroke="#14b8a6" stroke-width="1"/>
+  <text x="480" y="175" text-anchor="middle" fill="#2dd4bf" font-size="12" font-weight="600">Authentication &amp; Session Store</text>
+  <text x="480" y="193" text-anchor="middle" fill="#cbd5e1" font-size="11">scrypt Hashes / OIDC / Distributed Redis</text>
+
+  <rect x="356" y="225" width="248" height="60" rx="8" fill="#0f172a" stroke="#14b8a6" stroke-width="1"/>
+  <text x="480" y="245" text-anchor="middle" fill="#2dd4bf" font-size="12" font-weight="600">SSRF Protection &amp; URL Pinning</text>
+  <text x="480" y="263" text-anchor="middle" fill="#cbd5e1" font-size="11">Private IP Blocking &amp; DNS Resolution</text>
+
+  <rect x="356" y="295" width="248" height="60" rx="8" fill="#0f172a" stroke="#14b8a6" stroke-width="1"/>
+  <text x="480" y="315" text-anchor="middle" fill="#2dd4bf" font-size="12" font-weight="600">AES-256 Secret Vault &amp; External Secrets</text>
+  <text x="480" y="333" text-anchor="middle" fill="#cbd5e1" font-size="11">AWS Secrets / Vault / Azure Key Vault</text>
+
+  <rect x="356" y="365" width="248" height="95" rx="8" fill="#0f172a" stroke="#14b8a6" stroke-width="1"/>
+  <text x="480" y="385" text-anchor="middle" fill="#2dd4bf" font-size="12" font-weight="600">Tamper-Evident Audit Chain</text>
+  <text x="480" y="403" text-anchor="middle" fill="#cbd5e1" font-size="11">Keyed HMAC SHA-256 Hash Link</text>
+  <text x="480" y="420" text-anchor="middle" fill="#cbd5e1" font-size="11">JSONL Append-Only Log</text>
+  <text x="480" y="437" text-anchor="middle" fill="#cbd5e1" font-size="11">Fine-Grained RBAC Rules</text>
+
+  <!-- Arrow Server -> Enterprise Integrations -->
+  <path d="M 620 290 L 700 290" stroke="#2dd4bf" stroke-width="2.5" marker-end="url(#arrow)" stroke-dasharray="6,4"/>
+  <text x="660" y="278" text-anchor="middle" fill="#2dd4bf" font-size="10" font-weight="600">Outbound API</text>
+  <text x="660" y="306" text-anchor="middle" fill="#64748b" font-size="9">Pinned DNS</text>
+
+  <!-- 3. Target Infrastructure Layer -->
+  <rect x="700" y="100" width="220" height="380" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="712" y="112" width="196" height="32" rx="6" fill="url(#grad-sec)"/>
+  <text x="810" y="133" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">ENTERPRISE ENDPOINTS</text>
+
+  <rect x="716" y="160" width="188" height="55" rx="8" fill="#0f172a" stroke="#a78bfa" stroke-width="1"/>
+  <text x="810" y="182" text-anchor="middle" fill="#c084fc" font-size="12" font-weight="600">Company Internal APIs</text>
+  <text x="810" y="200" text-anchor="middle" fill="#94a3b8" font-size="11">KPIs, Metrics, Health Checks</text>
+
+  <rect x="716" y="225" width="188" height="55" rx="8" fill="#0f172a" stroke="#a78bfa" stroke-width="1"/>
+  <text x="810" y="247" text-anchor="middle" fill="#c084fc" font-size="12" font-weight="600">Incident &amp; Pager Systems</text>
+  <text x="810" y="265" text-anchor="middle" fill="#94a3b8" font-size="11">Severity Feeds &amp; Actions</text>
+
+  <rect x="716" y="290" width="188" height="55" rx="8" fill="#0f172a" stroke="#a78bfa" stroke-width="1"/>
+  <text x="810" y="312" text-anchor="middle" fill="#c084fc" font-size="12" font-weight="600">GitHub Actions &amp; CI/CD</text>
+  <text x="810" y="330" text-anchor="middle" fill="#94a3b8" font-size="11">Release Pipeline Monitoring</text>
+
+  <rect x="716" y="355" width="188" height="55" rx="8" fill="#0f172a" stroke="#a78bfa" stroke-width="1"/>
+  <text x="810" y="377" text-anchor="middle" fill="#c084fc" font-size="12" font-weight="600">Automation Executors</text>
+  <text x="810" y="395" text-anchor="middle" fill="#94a3b8" font-size="11">Audited Command Queues</text>
+
+  <rect x="716" y="420" width="188" height="40" rx="8" fill="#0f172a" stroke="#a78bfa" stroke-width="1"/>
+  <text x="810" y="444" text-anchor="middle" fill="#94a3b8" font-size="11">Open-Meteo &amp; Weather</text>
+</svg>
