@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { URL, fileURLToPath } from 'node:url';
 import { appendAudit, loadSecrets, loadState, saveSecrets, saveState, readAudit, DATA_DIR } from './server/storage.js';
-import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, securityHeaders, validateRemoteUrl } from './server/security.js';
+import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, requestJson, securityHeaders, validateRemoteUrl } from './server/security.js';
 import { clearSessionCookie, csrfToken, login, logout, requireCsrf, requirePermission, sanitizeUser, sessionUser, setupOwner } from './server/auth.js';
 import { finishOidc, isOidcConfigured, startOidc } from './server/oidc.js';
 
@@ -42,7 +42,7 @@ async function audit(user, action, details = {}) {
   const entry = { id: crypto.randomUUID(), timestamp: new Date().toISOString(), actorId: user?.id || 'system', actorEmail: user?.email || 'system', action, details, previousHash: state.lastAuditHash || '' };
   entry.hash = auditHash(entry, entry.previousHash); state.lastAuditHash = entry.hash; await saveState(state); await appendAudit(entry);
 }
-function safeIntegration(item) { return { id: item.id, kind: item.kind, name: item.name, endpoint: item.endpoint || '', authType: item.authType || 'none', configured: Boolean(item.endpoint || item.settings), updatedAt: item.updatedAt || null, settings: item.settings || {} }; }
+function safeIntegration(item, includeConfig = false) { const base = { id: item.id, kind: item.kind, name: item.name, authType: item.authType || 'none', configured: Boolean(item.endpoint || item.settings), updatedAt: item.updatedAt || null }; return includeConfig ? { ...base, endpoint: item.endpoint || '', settings: item.settings || {} } : base; }
 function getIntegration(kind, allowUnconfigured = false) {
   const integration = state.integrations[kind];
   if (!integration && allowUnconfigured) return { id: kind, kind, name: kind, settings: {} };
@@ -53,14 +53,7 @@ function getSecret(kind) { const record = secrets[kind]; return record ? decrypt
 function authHeaders(integration) { const secret = getSecret(integration.kind); if (!secret) return {}; if (integration.authType === 'apiKey') return { 'X-API-Key': secret }; if (integration.authType === 'bearer') return { Authorization: 'Bearer ' + secret }; return {}; }
 
 async function remoteJson(inputUrl, options = {}) {
-  const url = await validateRemoteUrl(inputUrl);
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), Number(options.timeoutMs || 8000));
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal, redirect: 'error', headers: { Accept: 'application/json', ...(options.headers || {}) } });
-    if (!response.ok) throw fail('Integration request failed with HTTP ' + response.status, 502);
-    const text = await response.text(); if (text.length > MAX_BODY) throw fail('Integration response is too large', 502);
-    try { return text ? JSON.parse(text) : {}; } catch { throw fail('Integration returned invalid JSON', 502); }
-  } finally { clearTimeout(timer); }
+  return requestJson(inputUrl, options);
 }
 
 async function upsertIntegration(user, kind, input) {
@@ -208,7 +201,7 @@ async function api(req, res, url) {
   if (url.pathname === '/api/auth/oidc/start' && req.method === 'GET') { if (!isOidcConfigured()) throw fail('SSO is not configured', 404); const target = await startOidc(); res.writeHead(302, { ...securityHeaders(), Location: target }); return res.end(); }
   if (url.pathname === '/api/auth/oidc/callback' && req.method === 'GET') { const result = await finishOidc(url.searchParams.get('state') || '', url.searchParams.get('code') || '', state); await persist(); await audit(result.user, 'auth.login', { method: 'oidc' }); res.writeHead(302, { ...securityHeaders(), Location: '/', 'Set-Cookie': cookie(result.token) }); return res.end(); }
   const user = sessionUser(state, req); if (!user) throw fail('Authentication required', 401);
-  if (url.pathname === '/api/integrations' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, Object.values(state.integrations).map(safeIntegration)); }
+  if (url.pathname === '/api/integrations' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin'))); }
   if (url.pathname.startsWith('/api/integrations/') && url.pathname.endsWith('/data') && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, await integrationData(url.pathname.split('/')[3])); }
   if (url.pathname.startsWith('/api/integrations/') && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); return send(res, 200, await upsertIntegration(actor, url.pathname.split('/')[3], await readBody(req))); }
   if (url.pathname.startsWith('/api/integrations/') && req.method === 'DELETE') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const kind = url.pathname.split('/')[3]; delete state.integrations[kind]; delete secrets[kind]; await persist(); await audit(actor, 'integration.deleted', { kind }); return send(res, 200, { ok: true }); }
