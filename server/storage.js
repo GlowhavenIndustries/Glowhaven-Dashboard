@@ -14,8 +14,9 @@ async function ensureDir() {
 
 async function secureWrite(file, content) {
   await ensureDir();
-  await fs.writeFile(file, content, { encoding: 'utf8', mode: 0o600 });
-  try { await fs.chmod(file, 0o600); } catch {}
+  const temp = file + '.' + process.pid + '.' + Math.random().toString(16).slice(2) + '.tmp';
+  await fs.writeFile(temp, content, { encoding: 'utf8', mode: 0o600 });
+  try { await fs.chmod(temp, 0o600); await fs.rename(temp, file); } catch (error) { try { await fs.rm(temp, { force: true }); } catch {} throw error; }
 }
 
 export async function readJson(file, fallback) {
@@ -54,10 +55,15 @@ export async function saveSecrets(secrets) {
   await writeJson(FILES.secrets, secrets);
 }
 
+let auditWrite = Promise.resolve();
+
 export async function appendAudit(entry) {
-  await ensureDir();
-  await fs.appendFile(FILES.audits, JSON.stringify(entry) + '\n', { encoding: 'utf8', mode: 0o600 });
-  try { await fs.chmod(FILES.audits, 0o600); } catch {}
+  auditWrite = auditWrite.then(async () => {
+    await ensureDir();
+    await fs.appendFile(FILES.audits, JSON.stringify(entry) + '\\n', { encoding: 'utf8', mode: 0o600 });
+    try { await fs.chmod(FILES.audits, 0o600); } catch {}
+  });
+  return auditWrite;
 }
 
 export async function readAudit(limit = 200) {

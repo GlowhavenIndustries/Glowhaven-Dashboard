@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { URL, fileURLToPath } from 'node:url';
 import { appendAudit, loadSecrets, loadState, saveSecrets, saveState, readAudit, DATA_DIR } from './server/storage.js';
-import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, securityHeaders, validateRemoteUrl } from './server/security.js';
+import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, requestJson, securityHeaders, validateRemoteUrl } from './server/security.js';
 import { clearSessionCookie, csrfToken, login, logout, requireCsrf, requirePermission, sanitizeUser, sessionUser, setupOwner } from './server/auth.js';
 import { finishOidc, isOidcConfigured, startOidc } from './server/oidc.js';
 
@@ -26,6 +26,8 @@ function send(res, status, data, headers = {}) {
 }
 function fail(message, statusCode = 400) { const e = new Error(message); e.statusCode = statusCode; return e; }
 function cookie(token) { return 'gh_session=' + encodeURIComponent(token) + '; Path=/; HttpOnly; SameSite=Lax; Max-Age=' + SESSION_MAX_AGE + (secureCookies ? '; Secure' : ''); }
+function oidcStateCookie(state) { return 'gh_oidc_state=' + encodeURIComponent(state) + '; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=600' + (secureCookies ? '; Secure' : ''); }
+function readCookie(req, name) { const value = req.headers.cookie || ''; const item = value.split(';').map((part) => part.trim()).find((part) => part.startsWith(name + '=')); return item ? decodeURIComponent(item.slice(name.length + 1)) : ''; }
 
 async function readBody(req) {
   let size = 0; const chunks = [];
@@ -42,7 +44,7 @@ async function audit(user, action, details = {}) {
   const entry = { id: crypto.randomUUID(), timestamp: new Date().toISOString(), actorId: user?.id || 'system', actorEmail: user?.email || 'system', action, details, previousHash: state.lastAuditHash || '' };
   entry.hash = auditHash(entry, entry.previousHash); state.lastAuditHash = entry.hash; await saveState(state); await appendAudit(entry);
 }
-function safeIntegration(item) { return { id: item.id, kind: item.kind, name: item.name, endpoint: item.endpoint || '', authType: item.authType || 'none', configured: Boolean(item.endpoint || item.settings), updatedAt: item.updatedAt || null, settings: item.settings || {} }; }
+function safeIntegration(item, includeConfig = false) { const base = { id: item.id, kind: item.kind, name: item.name, authType: item.authType || 'none', configured: Boolean(item.endpoint || item.settings), updatedAt: item.updatedAt || null }; return includeConfig ? { ...base, endpoint: item.endpoint || '', settings: item.settings || {} } : base; }
 function getIntegration(kind, allowUnconfigured = false) {
   const integration = state.integrations[kind];
   if (!integration && allowUnconfigured) return { id: kind, kind, name: kind, settings: {} };
@@ -53,14 +55,7 @@ function getSecret(kind) { const record = secrets[kind]; return record ? decrypt
 function authHeaders(integration) { const secret = getSecret(integration.kind); if (!secret) return {}; if (integration.authType === 'apiKey') return { 'X-API-Key': secret }; if (integration.authType === 'bearer') return { Authorization: 'Bearer ' + secret }; return {}; }
 
 async function remoteJson(inputUrl, options = {}) {
-  const url = await validateRemoteUrl(inputUrl);
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), Number(options.timeoutMs || 8000));
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal, redirect: 'error', headers: { Accept: 'application/json', ...(options.headers || {}) } });
-    if (!response.ok) throw fail('Integration request failed with HTTP ' + response.status, 502);
-    const text = await response.text(); if (text.length > MAX_BODY) throw fail('Integration response is too large', 502);
-    try { return text ? JSON.parse(text) : {}; } catch { throw fail('Integration returned invalid JSON', 502); }
-  } finally { clearTimeout(timer); }
+  return requestJson(inputUrl, options);
 }
 
 async function upsertIntegration(user, kind, input) {
@@ -127,8 +122,7 @@ async function integrationData(kind) {
       url.searchParams.set('maxResults', '5');
       url.searchParams.set('singleEvents', 'true');
       url.searchParams.set('orderBy', 'startTime');
-      url.searchParams.set('key', getSecret(kind));
-      const data = await remoteJson(url.toString());
+      const data = await remoteJson(url.toString(), { headers: authHeaders(integration) });
       return { events: (data.items || []).map((event) => ({ title: event.summary || 'Untitled', time: event.start?.dateTime || event.start?.date || '' })) };
     }
     if (settings.provider === 'outlook' && integration.endpoint) {
@@ -205,16 +199,16 @@ async function api(req, res, url) {
   if (url.pathname === '/api/auth/login' && req.method === 'POST') { const input = await readBody(req); try { const result = await login(state, req, input.email, input.password); await persist(); await audit(result.user, 'auth.login', { method: 'password' }); return send(res, 200, { user: sanitizeUser(result.user), csrf: result.csrf }, { 'Set-Cookie': cookie(result.token) }); } catch (e) { e.statusCode = 401; throw e; } }
   if (url.pathname === '/api/auth/setup' && req.method === 'POST') { const input = await readBody(req); const result = await setupOwner(state, req, input.email, input.password); await persist(); await audit(result.user, 'auth.setup', { method: 'password' }); return send(res, 200, { user: sanitizeUser(result.user), csrf: result.csrf }, { 'Set-Cookie': cookie(result.token) }); }
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') { const user = sessionUser(state, req); requireCsrf(state, req); await logout(state, req); await persist(); if (user) await audit(user, 'auth.logout'); return send(res, 200, { ok: true }, { 'Set-Cookie': clearSessionCookie(secureCookies) }); }
-  if (url.pathname === '/api/auth/oidc/start' && req.method === 'GET') { if (!isOidcConfigured()) throw fail('SSO is not configured', 404); const target = await startOidc(); res.writeHead(302, { ...securityHeaders(), Location: target }); return res.end(); }
-  if (url.pathname === '/api/auth/oidc/callback' && req.method === 'GET') { const result = await finishOidc(url.searchParams.get('state') || '', url.searchParams.get('code') || '', state); await persist(); await audit(result.user, 'auth.login', { method: 'oidc' }); res.writeHead(302, { ...securityHeaders(), Location: '/', 'Set-Cookie': cookie(result.token) }); return res.end(); }
+  if (url.pathname === '/api/auth/oidc/start' && req.method === 'GET') { if (!isOidcConfigured()) throw fail('SSO is not configured', 404); const flow = await startOidc(); res.writeHead(302, { ...securityHeaders(), Location: flow.url, 'Set-Cookie': oidcStateCookie(flow.state) }); return res.end(); }
+  if (url.pathname === '/api/auth/oidc/callback' && req.method === 'GET') { const result = await finishOidc(url.searchParams.get('state') || '', url.searchParams.get('code') || '', state, readCookie(req, 'gh_oidc_state')); await persist(); await audit(result.user, 'auth.login', { method: 'oidc' }); res.writeHead(302, { ...securityHeaders(), Location: '/', 'Set-Cookie': [cookie(result.token), 'gh_oidc_state=; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=0' + (secureCookies ? '; Secure' : '')] }); return res.end(); }
   const user = sessionUser(state, req); if (!user) throw fail('Authentication required', 401);
-  if (url.pathname === '/api/integrations' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, Object.values(state.integrations).map(safeIntegration)); }
+  if (url.pathname === '/api/integrations' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin'))); }
   if (url.pathname.startsWith('/api/integrations/') && url.pathname.endsWith('/data') && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, await integrationData(url.pathname.split('/')[3])); }
   if (url.pathname.startsWith('/api/integrations/') && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); return send(res, 200, await upsertIntegration(actor, url.pathname.split('/')[3], await readBody(req))); }
   if (url.pathname.startsWith('/api/integrations/') && req.method === 'DELETE') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const kind = url.pathname.split('/')[3]; delete state.integrations[kind]; delete secrets[kind]; await persist(); await audit(actor, 'integration.deleted', { kind }); return send(res, 200, { ok: true }); }
   if (url.pathname === '/api/automations/run' && req.method === 'POST') { const actor = requirePermission(state, req, 'operate'); requireCsrf(state, req); return send(res, 200, await runAutomation(actor, await readBody(req))); }
   if (url.pathname === '/api/audit' && req.method === 'GET') { requirePermission(state, req, 'audit'); return send(res, 200, await readAudit(url.searchParams.get('limit') || 200)); }
-  if (url.pathname === '/api/config' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, { organization: state.organization, integrations: Object.values(state.integrations).map(safeIntegration), role: user.role }); }
+  if (url.pathname === '/api/config' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, { organization: state.organization, integrations: Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin')), role: user.role }); }
   if (url.pathname === '/api/config' && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const input = await readBody(req); if (typeof input.organization?.name === 'string') state.organization.name = input.organization.name.trim().slice(0, 120); if (typeof input.organization?.timezone === 'string') state.organization.timezone = input.organization.timezone.trim().slice(0, 80); await persist(); await audit(actor, 'organization.updated', { name: state.organization.name }); return send(res, 200, { organization: state.organization }); }
   if (url.pathname === '/api/users' && req.method === 'GET') { requirePermission(state, req, 'users'); return send(res, 200, state.users.map(sanitizeUser)); }
   if (url.pathname === '/api/users' && req.method === 'POST') { const actor = requirePermission(state, req, 'users'); requireCsrf(state, req); const input = await readBody(req); const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || ''); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw fail('Valid email is required'); if (state.users.some((u) => u.email === email)) throw fail('A user with that email already exists', 409); if (password.length < 12) throw fail('Password must be at least 12 characters'); const user = { id: crypto.randomUUID(), email, role: ['admin', 'operator', 'viewer'].includes(input.role) ? input.role : 'viewer', password: (await import('./server/security.js')).hashPassword(password), createdAt: new Date().toISOString(), status: 'active', auth: 'password' }; state.users.push(user); await persist(); await audit(actor, 'user.created', { userId: user.id, role: user.role }); return send(res, 201, sanitizeUser(user)); }
@@ -228,7 +222,8 @@ async function staticFile(res, pathname) {
   const publicAllowed = publicPath === 'index.html' || publicPath === 'app.js' || publicPath === 'dataSources.js' || publicPath === 'styles.css' || publicPath.startsWith('widgets/') || publicPath.startsWith('assets/');
   if (!publicAllowed) return send(res, 404, 'Not found');
   const file = path.resolve(ROOT, '.' + requestPath);
-  if (!file.startsWith(ROOT)) return send(res, 403, 'Forbidden');
+  const relative = path.relative(ROOT, file);
+  if (relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return send(res, 403, 'Forbidden');
   try { const stat = await fs.stat(file); if (!stat.isFile()) throw new Error('not file'); const content = await fs.readFile(file); res.writeHead(200, { ...securityHeaders(), 'Cache-Control': 'no-store', 'Content-Type': contentType(file) }); res.end(content); } catch { send(res, 404, 'Not found'); }
 }
 

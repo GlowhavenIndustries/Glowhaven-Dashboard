@@ -4,13 +4,20 @@ import { randomToken, hashToken } from './security.js';
 const pending = new Map();
 const TTL = 10 * 60 * 1000;
 
+function issuerUrl() {
+  let url;
+  try { url = new URL(process.env.OIDC_ISSUER); } catch { throw new Error('OIDC issuer must be a valid URL'); }
+  if (url.protocol !== 'https:') throw new Error('OIDC issuer must use HTTPS');
+  return url.toString().replace(/\/$/, '');
+}
+
 function configured() {
   return Boolean(process.env.OIDC_ISSUER && process.env.OIDC_CLIENT_ID && process.env.OIDC_CLIENT_SECRET && process.env.OIDC_REDIRECT_URI);
 }
 
 async function discovery() {
   if (!configured()) throw new Error('OIDC is not configured');
-  const issuer = process.env.OIDC_ISSUER.replace(/\/$/, '');
+  const issuer = issuerUrl();
   const response = await fetch(issuer + '/.well-known/openid-configuration');
   if (!response.ok) throw new Error('OIDC discovery failed');
   return response.json();
@@ -34,7 +41,7 @@ export async function startOidc() {
   url.searchParams.set('nonce', nonce);
   url.searchParams.set('code_challenge', challenge);
   url.searchParams.set('code_challenge_method', 'S256');
-  return url.toString();
+  return { url: url.toString(), state };
 }
 
 function roleForClaims(claims) {
@@ -44,7 +51,8 @@ function roleForClaims(claims) {
   return admins.has(String(claims.email || '').toLowerCase()) || groups.some((x) => adminGroups.has(x)) ? 'admin' : 'viewer';
 }
 
-export async function finishOidc(state, code, appState) {
+export async function finishOidc(state, code, appState, expectedState = '') {
+  if (!state || !expectedState || !crypto.timingSafeEqual(Buffer.from(state), Buffer.from(expectedState))) throw new Error('OIDC state validation failed');
   const record = pending.get(hashToken(state));
   pending.delete(hashToken(state));
   if (!record || record.expiresAt <= Date.now()) throw new Error('OIDC state expired');
@@ -60,12 +68,23 @@ export async function finishOidc(state, code, appState) {
   if (!tokenResponse.ok) throw new Error('OIDC token exchange failed');
   const tokens = await tokenResponse.json();
   if (!tokens.access_token) throw new Error('OIDC provider did not return an access token');
+  if (tokens.id_token) {
+    const parts = String(tokens.id_token).split('.');
+    if (parts.length !== 3) throw new Error('OIDC provider returned an invalid ID token');
+    try {
+      const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      const issuer = issuerUrl();
+      const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+      if (claims.iss !== issuer || !audience.includes(process.env.OIDC_CLIENT_ID) || claims.nonce !== record.nonce || claims.email_verified !== true || !claims.exp || Number(claims.exp) <= Math.floor(Date.now() / 1000)) throw new Error('OIDC ID token claims failed validation');
+    } catch (error) { throw new Error('OIDC ID token claims failed validation'); }
+  }
   const infoResponse = await fetch(metadata.userinfo_endpoint, { headers: { Authorization: 'Bearer ' + tokens.access_token } });
   if (!infoResponse.ok) throw new Error('OIDC userinfo request failed');
   const claims = await infoResponse.json();
   if (!claims?.sub || !claims?.email) throw new Error('OIDC identity did not contain an email');
   const email = String(claims.email).trim().toLowerCase();
   let user = appState.users.find((item) => item.email === email);
+  if (user?.auth === 'oidc' && user.externalSubject && user.externalSubject !== String(claims.sub)) throw new Error('OIDC subject does not match the existing account');
   if (!user) {
     user = { id: randomToken(16), email, role: appState.users.length ? roleForClaims(claims) : 'owner', createdAt: new Date().toISOString(), status: 'active', auth: 'oidc', externalSubject: String(claims.sub) };
     appState.users.push(user);
