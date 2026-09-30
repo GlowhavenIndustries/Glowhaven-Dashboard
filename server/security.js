@@ -29,7 +29,10 @@ export function verifyPassword(password, record) {
 }
 
 export async function ensureMasterKey(dataDir) {
-  if (process.env.GLOWHAVEN_MASTER_KEY) return;
+  if (process.env.GLOWHAVEN_MASTER_KEY) {
+    masterKey();
+    return;
+  }
   if (process.env.NODE_ENV === 'production') throw new Error('GLOWHAVEN_MASTER_KEY must be configured in production');
   const file = path.join(dataDir, 'master.key');
   try {
@@ -67,7 +70,8 @@ export function decryptSecret(record) {
 }
 
 export function auditHash(entry, previousHash = '') {
-  return crypto.createHmac('sha256', masterKey()).update(JSON.stringify({ ...entry, previousHash })).digest('hex');
+  const { hash: _hash, ...payload } = entry || {};
+  return crypto.createHmac('sha256', masterKey()).update(JSON.stringify({ ...payload, previousHash })).digest('hex');
 }
 
 export async function validateRemoteUrl(input) {
@@ -76,6 +80,10 @@ export async function validateRemoteUrl(input) {
   if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Integration endpoint must use HTTP or HTTPS');
   if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') throw new Error('Production integration endpoints must use HTTPS');
   if (url.username || url.password) throw new Error('Integration endpoint credentials in URLs are not allowed');
+  const sensitiveQueryKey = /(token|secret|password|passwd|api[_-]?key|authorization|auth)/i;
+  for (const key of url.searchParams.keys()) {
+    if (sensitiveQueryKey.test(key)) throw new Error('Integration endpoint credentials must be stored in the secure secret field');
+  }
 
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
@@ -112,7 +120,7 @@ export function isPrivateIp(address) {
   if (version === 6) {
     const normalized = address.toLowerCase();
     if (normalized === '::' || normalized === '::1') return true;
-    if (normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80:')) return true;
+    if (normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80:') || normalized.startsWith('ff')) return true;
     const mapped = normalized.match(/^::ffff:(\d+(?:\.\d+){3})$/);
     return Boolean(mapped && isPrivateIp(mapped[1]));
   }
