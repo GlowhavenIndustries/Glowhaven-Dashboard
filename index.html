@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#07090d"><meta name="description" content="Glowhaven Industries modular command center">
-<title>Glowhaven Industries — Command Center</title>
+<meta name="theme-color" content="#07090d"><meta name="description" content="Glowhaven Industries operational command platform">
+<title>Glowhaven Industries — Operations Platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
@@ -11,35 +11,41 @@
 <body>
 <div class="app">
 <aside class="sidebar">
-  <div class="brand"><div class="brand-mark">G</div><div><strong>Glowhaven</strong><span>Industries Command</span></div></div>
+  <div class="brand"><div class="brand-mark" aria-hidden="true"><span></span></div><div><strong>Glowhaven</strong><span>Operations Platform</span></div></div>
   <nav class="nav" aria-label="Primary">
-    <button class="nav-item active">Overview</button><button class="nav-item">Automations</button><button class="nav-item">Workflow</button><button class="nav-item">Devices</button><button class="nav-item">Analytics</button><button class="nav-item">Settings</button>
+    <button class="nav-item active" data-view="Overview">Overview</button>
+    <button class="nav-item" data-view="Automations">Automations</button>
+    <button class="nav-item" data-view="Workflow">Workflow</button>
+    <button class="nav-item" data-view="Devices">Devices</button>
+    <button class="nav-item" data-view="Analytics">Analytics</button>
+    <button class="nav-item" data-view="Settings">Settings</button>
   </nav>
-  <div class="sidebar-card"><span class="eyebrow">Operations</span><strong>Glowhaven Prime</strong><span>Local-first command fabric</span><div class="online-dot"><i></i> Systems online</div></div>
+  <div class="sidebar-card"><span class="eyebrow">Workspace</span><strong id="statusOrg">Your Company</strong><span>Operational command fabric</span><div class="online-dot"><i></i> Runtime ready</div></div>
 </aside>
 <main class="main">
 <header class="topbar">
- <div><span class="eyebrow">Glowhaven / Command</span><h1>Control everything. Keep it yours.</h1><p class="muted">A modular operating surface for your digital ecosystem.</p></div>
- <div class="top-actions"><label class="search"><span>⌕</span><input id="searchInput" placeholder="Search modules…"></label><button class="pill" id="themeToggle">Theme</button><button class="pill" id="neonToggle">Visual</button><button class="pill" id="consoleToggle">Console</button><button class="pill primary" id="launchButton">Launch directive</button></div>
+ <div><span class="eyebrow">Glowhaven / Operations</span><h1>Run the company from one surface.</h1><p class="muted">Monitor, automate, triage, and coordinate work without rebuilding the workspace for every team.</p></div>
+ <div class="top-actions"><label class="search"><span>⌕</span><input id="searchInput" aria-label="Search modules" placeholder="Search modules…"></label><button class="pill" id="themeToggle">Theme</button><button class="pill" id="neonToggle">Visual</button><button class="pill" id="consoleToggle">Console</button><button class="pill primary" id="launchButton">Queue action</button></div>
 </header>
 <section class="hero-card">
- <div class="hero-copy"><span class="eyebrow">System pulse</span><h2>One command surface for every signal.</h2><p class="muted">Monitor services, pipelines, weather, and activity from a single responsive workspace.</p><div class="hero-actions"><button class="pill primary" id="refreshAll">Refresh all</button><span class="status-pill positive">Live runtime</span></div></div>
+ <div class="hero-copy"><span class="eyebrow">Executive pulse</span><h2>See what needs attention. Act from the same screen.</h2><p class="muted">A company-agnostic command layer for engineering, operations, support, and leadership.</p><div class="hero-actions"><button class="pill primary" id="refreshAll">Refresh everything</button><span class="status-pill positive">Local runtime</span></div></div>
  <div class="hero-metrics"><div><span>Availability</span><strong id="metricAvailability">—</strong></div><div><span>Latency</span><strong id="metricLatency">—</strong></div><div><span>Alerts</span><strong id="metricAlerts">—</strong></div><div><span>Mode</span><strong id="metricMode">GLOW</strong></div></div>
 </section>
 <section class="control-panel">
- <label><span>Dashboard</span><select id="dashboardSelect"><option value="personal">Personal</option><option value="team">Team</option></select></label>
- <label><span>Role</span><select id="roleSelect"><option value="admin">Admin</option><option value="viewer">Viewer</option></select></label>
- <div class="control-status"><span>Security</span><b id="statusSecurity">Local config protected</b></div>
- <div class="control-status"><span>Editing</span><b id="statusEdit">Edit mode enabled</b></div>
- <div class="control-actions"><select id="widgetType"><option value="githubProjects">GitHub pipelines</option><option value="serverStatus">System monitor</option><option value="weather">Weather</option><option value="calendar">Calendar</option></select><button class="pill" id="addWidget">Add module</button><button class="pill" id="exportConfig">Export</button><button class="pill" id="importConfig">Import</button><input hidden type="file" id="importInput" accept=".json,application/json"></div>
+ <label><span>Workspace</span><select id="dashboardSelect"><option value="operations">Operations</option><option value="team">Team</option></select></label>
+ <label><span>Access</span><select id="roleSelect"><option value="admin">Admin</option><option value="viewer">Viewer</option></select></label>
+ <div class="control-status"><span>Editing</span><b id="statusEdit">Admin controls active</b></div>
+ <div class="control-actions"><select id="widgetType">
+  <option value="kpi">Business KPI</option><option value="incidents">Incident center</option><option value="automations">Automation queue</option><option value="activity">Team activity</option><option value="githubProjects">GitHub pipelines</option><option value="serverStatus">Service health</option><option value="weather">Weather</option><option value="calendar">Calendar</option>
+ </select><button class="pill" id="addWidget">Add module</button><button class="pill" id="exportConfig">Export</button><button class="pill" id="importConfig">Import</button><input hidden type="file" id="importInput" accept=".json,application/json"></div>
 </section>
 <section class="quick-grid">
- <article><span class="eyebrow">Deck</span><h3 id="statusDashboard">Personal dashboard</h3><p class="muted">Switch command layouts without rebuilding the workspace.</p></article>
- <article><span class="eyebrow">Access</span><h3 id="statusRole">Admin role</h3><p class="muted">Role-aware widgets keep editing separate from viewing.</p></article>
- <article><span class="eyebrow">Architecture</span><h3>Plugin ready</h3><p class="muted">Modules are loaded independently and can fail safely.</p></article>
+ <article><span class="eyebrow">Attention</span><h3>Incidents before dashboards</h3><p class="muted">Keep failures, degraded services, and operational notes visible beside normal metrics.</p></article>
+ <article><span class="eyebrow">Execution</span><h3>Automations are first-class</h3><p class="muted">Queue repeatable actions locally now, with adapter hooks ready for real integrations later.</p></article>
+ <article><span class="eyebrow">Portable</span><h3>Built for any company</h3><p class="muted">Company name, data sources, workspaces, and modules live in importable configuration.</p></article>
 </section>
-<section class="widget-area"><div class="section-header"><div><span class="eyebrow">Workspace</span><h2>Modular intelligence</h2></div><span class="muted">Drag cards to reorganize • Add modules as needed</span></div><div class="widget-grid" id="widgetGrid"></div></section>
-<div class="toast" id="systemToast" role="status"></div>
+<section class="widget-area"><div class="section-header"><div><span class="eyebrow">Workspace</span><h2>Operational modules</h2></div><span class="muted">Drag to organize • Search to filter • Add to extend</span></div><div class="widget-grid" id="widgetGrid"></div></section>
+<div class="toast" id="systemToast" role="status" aria-live="polite"></div>
 </main>
 </div>
 <script type="module" src="app.js"></script>
