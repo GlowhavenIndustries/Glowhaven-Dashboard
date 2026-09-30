@@ -1,11 +1,5 @@
 const DEFAULT_TIMEOUT = 8000;
 const DEFAULT_RETRIES = 2;
-const DEFAULT_ENDPOINTS = [
-  'https://api.github.com',
-  'https://api.github.com/rate_limit',
-  'https://api.github.com/meta',
-];
-
 const DEFAULT_GITHUB_REPOS = [
   { owner: 'openai', repo: 'openai-cookbook' },
   { owner: 'vercel', repo: 'next.js' },
@@ -96,7 +90,7 @@ function formatEventTime(dateString) {
 
 export function resolveEndpointConfig(endpoints) {
   if (!Array.isArray(endpoints) || endpoints.length === 0) {
-    return DEFAULT_ENDPOINTS.map((url) => ({ url }));
+    return [];
   }
 
   return endpoints
@@ -167,8 +161,8 @@ export function summarizeStatus(results) {
 
   if (!total) {
     return {
-      uptime: '0.00%',
-      incidents: '0 incidents',
+      uptime: 'Not configured',
+      incidents: 'Not configured',
       failures: 0,
       services: [],
       latencyAvg: 0,
@@ -279,8 +273,8 @@ export async function fetchWeather(config = {}) {
       wind: Number.isFinite(wind)
         ? `${Math.round(wind)} ${units === 'imperial' ? 'mph' : 'm/s'}`
         : '—',
-      aqi: data.main?.pressure ? String(Math.round(data.main.pressure / 10)) : '—',
-      uv: data.sys?.country || '—',
+      aqi: 'Not available',
+      uv: 'Not available',
     };
   }
 
@@ -486,6 +480,19 @@ export async function fetchAutomations(config = {}) {
 }
 
 export async function fetchActivity(config = {}) {
+  if (config.provider === 'github' && config.github?.org) {
+    const items = await fetchJson(
+      `https://api.github.com/orgs/${encodeURIComponent(config.github.org)}/events?per_page=8`,
+      { headers: { ...JSON_HEADERS, 'X-GitHub-Api-Version': '2022-11-28' } },
+    );
+    return {
+      items: (Array.isArray(items) ? items : []).map((event) => ({
+        title: event.type?.replace(/Event$/, '') || 'Activity',
+        detail: event.repo?.name || config.github.org,
+        time: event.created_at || null,
+      })),
+    };
+  }
   const data = await fetchConfiguredJson(config, { activity: config.activity || [] });
   const items = normalizeItems(data, ['activity', 'items', 'events']).map((entry) => ({
     title: String(entry.title || entry.name || entry.message || 'Activity'),
