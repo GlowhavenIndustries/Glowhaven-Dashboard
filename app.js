@@ -30,7 +30,7 @@ export class Widget {
     const header = document.createElement('header'); header.className = 'widget-header';
     const heading = document.createElement('div'); const type = document.createElement('span'); type.className = 'eyebrow'; type.textContent = this.config.type;
     const title = document.createElement('h3'); title.textContent = this.config.title; heading.append(type, title);
-    const actions = document.createElement('div'); actions.className = 'widget-actions'; const role = document.createElement('span'); role.className = 'widget-badge'; role.textContent = this.dashboard.state.role; actions.append(role);
+    const actions = document.createElement('div'); actions.className = 'widget-actions'; const role = document.createElement('span'); role.className = 'widget-badge'; role.textContent = state.role; actions.append(role);
     if (this.dashboard.canManageWorkspace) { const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'icon-button'; remove.setAttribute('aria-label', 'Remove module'); remove.textContent = '×'; remove.addEventListener('click', () => this.dashboard.removeWidget(this.config.id)); actions.append(remove); }
     header.append(heading, actions); const body = document.createElement('div'); body.className = 'widget-body'; body.append(this.renderContent()); card.append(header, body);
     if (this.dashboard.canManageWorkspace) this.enableDrag(card); this.element = card; return card;
