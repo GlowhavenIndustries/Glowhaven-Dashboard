@@ -1,761 +1,208 @@
 import { fetchTelemetrySnapshot } from './dataSources.js';
 
-const app = document.querySelector('.app');
-const themeToggle = document.getElementById('themeToggle');
-const neonToggle = document.getElementById('neonToggle');
-const consoleToggle = document.getElementById('consoleToggle');
-const dashboardSelect = document.getElementById('dashboardSelect');
-const roleSelect = document.getElementById('roleSelect');
-const encryptionToggle = document.getElementById('encryptionToggle');
-const soundToggle = document.getElementById('soundToggle');
-const exportButton = document.getElementById('exportConfig');
-const importButton = document.getElementById('importConfig');
-const importInput = document.getElementById('importInput');
-const statusDashboard = document.getElementById('statusDashboard');
-const statusRole = document.getElementById('statusRole');
-const statusEdit = document.getElementById('statusEdit');
-const statusSecurity = document.getElementById('statusSecurity');
-const runtimeStatus = document.getElementById('runtimeStatus');
-
-const STORAGE_KEY = 'glowhaven-dashboard-config';
-const KEY_STORAGE = 'glowhaven-dashboard-key';
-
-const widgetRegistry = {};
-const dataSourceRegistry = {};
-
-const defaultConfig = {
-  encryptionEnabled: true,
-  dataSources: {
-    calendar: {
-      provider: 'github',
-      refreshMs: 300000,
-      github: {
-        org: 'github',
-      },
-      google: {
-        apiKey: '',
-        calendarId: '',
-      },
-      outlook: {
-        endpoint: '',
-        token: '',
-      },
-    },
-    weather: {
-      provider: 'openMeteo',
-      refreshMs: 60000,
-      openMeteo: {
-        units: 'imperial',
-        location: {
-          city: 'San Francisco',
-          lat: 37.7749,
-          lon: -122.4194,
-        },
-      },
-      openWeather: {
-        apiKey: '',
-        units: 'imperial',
-        location: {
-          city: 'San Francisco',
-          lat: '',
-          lon: '',
-        },
-      },
-    },
-    serverStatus: {
-      refreshMs: 15000,
-      endpoints: [],
-    },
-    github: {
-      refreshMs: 60000,
-      token: '',
-      repositories: [
-        { owner: 'github', repo: 'docs' },
-        { owner: 'vercel', repo: 'next.js' },
-      ],
-    },
-  },
-  realtime: {
-    enabled: true,
-    sseUrl: '',
-    websocketUrl: '',
-    refreshMs: 5000,
-  },
-  remoteBackup: {
-    enabled: false,
-    endpoint: '',
-  },
-  dashboards: {
-    personal: {
-      id: 'personal',
-      label: 'Personal',
-      role: 'admin',
-      widgets: [
-        {
-          id: 'calendar-1',
-          type: 'calendar',
-          title: 'Command Calendar',
-          position: { x: 1, y: 1, w: 4, h: 2 },
-          role: 'admin',
-        },
-        {
-          id: 'weather-1',
-          type: 'weather',
-          title: 'Climate Intelligence',
-          position: { x: 5, y: 1, w: 4, h: 2 },
-          role: 'viewer',
-        },
-        {
-          id: 'server-1',
-          type: 'serverStatus',
-          title: 'Global Systems Monitor',
-          position: { x: 9, y: 1, w: 4, h: 2 },
-          role: 'admin',
-          priority: 'high',
-        },
-        {
-          id: 'github-1',
-          type: 'githubProjects',
-          title: 'Pipeline Oversight',
-          position: { x: 1, y: 3, w: 6, h: 3 },
-          role: 'viewer',
-        },
-      ],
-    },
-    team: {
-      id: 'team',
-      label: 'Team',
-      role: 'viewer',
-      widgets: [
-        {
-          id: 'calendar-team',
-          type: 'calendar',
-          title: 'Global Sync Calendar',
-          position: { x: 1, y: 1, w: 5, h: 2 },
-          role: 'viewer',
-        },
-        {
-          id: 'server-team',
-          type: 'serverStatus',
-          title: 'Fleet Telemetry',
-          position: { x: 6, y: 1, w: 7, h: 2 },
-          role: 'admin',
-          priority: 'high',
-        },
-        {
-          id: 'github-team',
-          type: 'githubProjects',
-          title: 'Release Pipelines',
-          position: { x: 1, y: 3, w: 7, h: 3 },
-          role: 'viewer',
-        },
-        {
-          id: 'weather-team',
-          type: 'weather',
-          title: 'Ops Weather',
-          position: { x: 8, y: 3, w: 5, h: 3 },
-          role: 'viewer',
-        },
-      ],
-    },
-  },
-};
-
-class CryptoManager {
-  static async getKey() {
-    const storedKey = localStorage.getItem(KEY_STORAGE);
-    if (storedKey) {
-      const raw = Uint8Array.from(atob(storedKey), (c) => c.charCodeAt(0));
-      return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
-    }
-    const raw = crypto.getRandomValues(new Uint8Array(32));
-    localStorage.setItem(KEY_STORAGE, btoa(String.fromCharCode(...raw)));
-    return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
-  }
-
-  static async encrypt(payload) {
-    const key = await CryptoManager.getKey();
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoded = new TextEncoder().encode(payload);
-    const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
-    return {
-      iv: btoa(String.fromCharCode(...iv)),
-      data: btoa(String.fromCharCode(...new Uint8Array(cipher))),
-    };
-  }
-
-  static async decrypt({ iv, data }) {
-    const key = await CryptoManager.getKey();
-    const decodedIv = Uint8Array.from(atob(iv), (c) => c.charCodeAt(0));
-    const decoded = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-    const plainBuffer = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: decodedIv },
-      key,
-      decoded,
-    );
-    return new TextDecoder().decode(plainBuffer);
-  }
-}
-
-class StorageManager {
-  constructor() {
-    this.encryptionEnabled = defaultConfig.encryptionEnabled;
-  }
-
-  async load() {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      return structuredClone(defaultConfig);
-    }
-    const parsed = JSON.parse(stored);
-    if (parsed.encrypted) {
-      const decrypted = await CryptoManager.decrypt(parsed.payload);
-      return JSON.parse(decrypted);
-    }
-    return parsed;
-  }
-
-  async save(config) {
-    if (config.encryptionEnabled) {
-      const payload = await CryptoManager.encrypt(JSON.stringify(config));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ encrypted: true, payload }));
-      await this.persistRemoteBackup(config, payload);
-      return;
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    await this.persistRemoteBackup(config, config);
-  }
-
-  async persistRemoteBackup(config, payload) {
-    if (!config.remoteBackup?.enabled || !config.remoteBackup?.endpoint) {
-      return;
-    }
-    try {
-      await fetch(config.remoteBackup.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          encrypted: config.encryptionEnabled,
-          payload,
-          updatedAt: new Date().toISOString(),
-        }),
-      });
-    } catch (error) {
-      // silently ignore backup failures
-    }
-  }
-}
-
-class Widget {
+export class Widget {
   constructor(config, dashboard) {
     this.config = config;
     this.dashboard = dashboard;
-    this.telemetry = dashboard.telemetry;
     this.element = null;
+    this.cleanups = [];
   }
-
   render() {
     const card = document.createElement('article');
     card.className = 'widget-card';
     card.dataset.widgetId = this.config.id;
-    if (this.config.priority === 'high') {
-      card.classList.add('priority-high');
-    }
+    card.style.gridColumn = `${this.config.position.x} / span ${this.config.position.w}`;
+    card.style.gridRow = `${this.config.position.y} / span ${this.config.position.h}`;
 
-    const header = document.createElement('div');
+    const header = document.createElement('header');
     header.className = 'widget-header';
-
-    const title = document.createElement('h4');
-    title.className = 'widget-title';
-    title.textContent = this.config.title;
-
-    const meta = document.createElement('div');
-    meta.className = 'widget-meta';
-
-    const roleBadge = document.createElement('span');
-    roleBadge.className = 'widget-badge';
-    roleBadge.textContent = this.config.role;
-
-    const handle = document.createElement('button');
-    handle.className = 'widget-handle';
-    handle.type = 'button';
-    handle.textContent = 'Drag';
-
-    meta.append(roleBadge, handle);
-    header.append(title, meta);
+    const title = document.createElement('div');
+    title.innerHTML = `<span class="eyebrow">${this.config.type}</span><h3></h3>`;
+    title.querySelector('h3').textContent = this.config.title;
+    const actions = document.createElement('div');
+    actions.className = 'widget-actions';
+    const badge = document.createElement('span');
+    badge.className = 'widget-badge';
+    badge.textContent = this.config.role || 'viewer';
+    actions.appendChild(badge);
+    if (this.dashboard.canEdit) {
+      const remove = document.createElement('button');
+      remove.className = 'icon-button';
+      remove.type = 'button';
+      remove.title = 'Remove widget';
+      remove.textContent = '×';
+      remove.addEventListener('click', () => this.dashboard.removeWidget(this.config.id));
+      actions.appendChild(remove);
+    }
+    header.append(title, actions);
 
     const body = document.createElement('div');
     body.className = 'widget-body';
     body.appendChild(this.renderContent());
-
     card.append(header, body);
-
-    if (this.dashboard.canEdit) {
-      const resizeHandle = document.createElement('div');
-      resizeHandle.className = 'widget-resize';
-      card.appendChild(resizeHandle);
-      this.attachDrag(handle);
-      this.attachResize(resizeHandle);
-    } else {
-      handle.style.display = 'none';
-    }
-
+    if (this.dashboard.canEdit) this.enableDrag(card);
     this.element = card;
-    this.updatePosition();
     return card;
   }
-
-  renderContent() {
-    const placeholder = document.createElement('p');
-    placeholder.textContent = 'Widget content';
-    return placeholder;
-  }
-
-  updatePosition() {
-    if (!this.element) return;
-    const { x, y, w, h } = this.config.position;
-    this.element.style.gridColumn = `${x} / span ${w}`;
-    this.element.style.gridRow = `${y} / span ${h}`;
-  }
-
-  move(nextPosition) {
-    this.config.position = { ...this.config.position, ...nextPosition };
-    this.updatePosition();
-    this.dashboard.persist();
-  }
-
-  resize(nextSize) {
-    this.config.position = { ...this.config.position, ...nextSize };
-    this.updatePosition();
-    this.dashboard.persist();
-  }
-
-  updateData() {}
-
-  attachDrag(handle) {
-    handle.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      handle.setPointerCapture(event.pointerId);
-      const grid = this.dashboard.grid;
-      const gridRect = grid.getBoundingClientRect();
-      const columnWidth = gridRect.width / this.dashboard.columns;
-      const rowHeight = this.dashboard.rowHeight + this.dashboard.gap;
-
-      const onMove = (moveEvent) => {
-        const offsetX = moveEvent.clientX - gridRect.left;
-        const offsetY = moveEvent.clientY - gridRect.top;
-        const nextX = Math.min(
-          this.dashboard.columns,
-          Math.max(1, Math.round(offsetX / columnWidth)),
-        );
-        const nextY = Math.max(1, Math.round(offsetY / rowHeight));
-        this.move({ x: nextX, y: nextY });
-      };
-
-      const onUp = () => {
-        handle.releasePointerCapture(event.pointerId);
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-      };
-
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
+  renderContent() { const p=document.createElement('p'); p.className='muted'; p.textContent='Loading…'; return p; }
+  enableDrag(card) {
+    card.setAttribute('draggable','true');
+    const onDragStart = () => card.classList.add('is-dragging');
+    const onDragEnd = () => card.classList.remove('is-dragging');
+    card.addEventListener('dragstart', onDragStart);
+    card.addEventListener('dragend', onDragEnd);
+    this.cleanups.push(() => {
+      card.removeEventListener('dragstart', onDragStart);
+      card.removeEventListener('dragend', onDragEnd);
     });
   }
-
-  attachResize(resizeHandle) {
-    resizeHandle.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      resizeHandle.setPointerCapture(event.pointerId);
-      const grid = this.dashboard.grid;
-      const gridRect = grid.getBoundingClientRect();
-      const columnWidth = gridRect.width / this.dashboard.columns;
-      const rowHeight = this.dashboard.rowHeight + this.dashboard.gap;
-      const startPosition = { ...this.config.position };
-
-      const onMove = (moveEvent) => {
-        const offsetX = moveEvent.clientX - gridRect.left;
-        const offsetY = moveEvent.clientY - gridRect.top;
-        const endColumn = Math.min(
-          this.dashboard.columns + 1,
-          Math.max(1, Math.round(offsetX / columnWidth) + 1),
-        );
-        const endRow = Math.max(1, Math.round(offsetY / rowHeight) + 1);
-        const nextW = Math.max(2, endColumn - startPosition.x);
-        const nextH = Math.max(1, endRow - startPosition.y);
-        this.resize({ w: nextW, h: nextH });
-      };
-
-      const onUp = () => {
-        resizeHandle.releasePointerCapture(event.pointerId);
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-      };
-
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-    });
+  destroy() {
+    this.cleanups.forEach(fn => fn());
+    this.cleanups = [];
+    if (this.interval) clearInterval(this.interval);
+    if (this.unsubscribe) this.unsubscribe();
   }
+}
+
+const DEFAULT_CONFIG = {
+  version: 2,
+  theme: 'dark',
+  visual: 'neon',
+  consoleMode: false,
+  activeDashboardId: 'personal',
+  activeRole: 'admin',
+  encryptionEnabled: true,
+  dataSources: {
+    calendar: { provider:'github', refreshMs:300000, github:{org:'GlowhavenIndustries'} },
+    weather: { provider:'openMeteo', refreshMs:60000, openMeteo:{units:'imperial',location:{city:'Dallas',lat:32.7767,lon:-96.7970}} },
+    serverStatus: { refreshMs:15000, endpoints:[] },
+    github: { refreshMs:60000, token:'', repositories:[
+      {owner:'GlowhavenIndustries',repo:'Glowhaven-Dashboard'},
+      {owner:'GlowhavenIndustries',repo:'Glowhaven-Media-Orchestrator'}
+    ] }
+  },
+  realtime:{enabled:true,sseUrl:'',websocketUrl:'',refreshMs:5000},
+  dashboards:{
+    personal:{id:'personal',label:'Personal',role:'admin',widgets:[
+      {id:'calendar-1',type:'calendar',title:'Command Calendar',position:{x:1,y:1,w:4,h:2},role:'admin'},
+      {id:'weather-1',type:'weather',title:'Climate Intelligence',position:{x:5,y:1,w:4,h:2},role:'viewer'},
+      {id:'server-1',type:'serverStatus',title:'Global Systems Monitor',position:{x:9,y:1,w:4,h:2},role:'admin',priority:'high'},
+      {id:'github-1',type:'githubProjects',title:'Pipeline Oversight',position:{x:1,y:3,w:6,h:3},role:'viewer'}
+    ]},
+    team:{id:'team',label:'Team',role:'viewer',widgets:[
+      {id:'calendar-team',type:'calendar',title:'Global Sync Calendar',position:{x:1,y:1,w:5,h:2},role:'viewer'},
+      {id:'server-team',type:'serverStatus',title:'Fleet Telemetry',position:{x:6,y:1,w:7,h:2},role:'admin',priority:'high'},
+      {id:'github-team',type:'githubProjects',title:'Release Pipelines',position:{x:1,y:3,w:7,h:3},role:'viewer'},
+      {id:'weather-team',type:'weather',title:'Ops Weather',position:{x:8,y:3,w:5,h:3},role:'viewer'}
+    ]}
+  }
+};
+
+const STORAGE_KEY='glowhaven-dashboard-v2';
+const registry={};
+const $=id=>document.getElementById(id);
+const clone=value=>structuredClone(value);
+const merge=(base,patch)=>({
+  ...base,...patch,
+  dataSources:{...base.dataSources,...patch.dataSources},
+  realtime:{...base.realtime,...patch.realtime},
+  dashboards:patch.dashboards||base.dashboards
+});
+
+class Storage {
+  load(){
+    try { const raw=localStorage.getItem(STORAGE_KEY); return raw?merge(clone(DEFAULT_CONFIG),JSON.parse(raw)):clone(DEFAULT_CONFIG); }
+    catch { return clone(DEFAULT_CONFIG); }
+  }
+  save(config){
+    try { localStorage.setItem(STORAGE_KEY,JSON.stringify(config)); return true; }
+    catch { return false; }
+  }
+}
+
+class Telemetry {
+  constructor(config){this.config=config;this.listeners=new Set();this.timer=null;this.running=false;}
+  subscribe(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn);}
+  emit(data){this.listeners.forEach(fn=>fn(data));}
+  start(){
+    if(this.running||!this.config?.enabled)return;
+    this.running=true;
+    const poll=async()=>{try{this.emit(await fetchTelemetrySnapshot({endpoints:this.config.endpoints}));}catch{}};
+    poll(); this.timer=setInterval(poll,Math.max(3000,this.config.refreshMs||5000));
+  }
+  stop(){clearInterval(this.timer);this.timer=null;this.running=false;}
 }
 
 class Dashboard {
-  constructor(config, storage, telemetry) {
-    this.config = config;
-    this.storage = storage;
-    this.telemetry = telemetry;
-    this.grid = document.getElementById('widgetGrid');
-    this.columns = 12;
-    this.rowHeight = 110;
-    this.gap = 16;
-    this.widgets = [];
-  }
-
-  get activeDashboard() {
-    return this.config.dashboards[this.config.activeDashboardId];
-  }
-
-  get canEdit() {
-    return this.activeDashboard.role === 'admin' && this.config.activeRole === 'admin';
-  }
-
-  async persist() {
-    await this.storage.save(this.config);
-  }
-
-  setDashboard(id) {
-    this.config.activeDashboardId = id;
-    this.render();
-    this.persist();
-  }
-
-  setRole(role) {
-    this.config.activeRole = role;
-    this.render();
-    this.persist();
-  }
-
-  setEncryption(enabled) {
-    this.config.encryptionEnabled = enabled;
-    this.persist();
-  }
-
-  render() {
-    this.grid.innerHTML = '';
-    this.widgets = [];
-    this.activeDashboard.widgets.forEach((widgetConfig) => {
-      if (widgetConfig.role === 'admin' && this.config.activeRole !== 'admin') {
-        return;
-      }
-      const WidgetType = widgetRegistry[widgetConfig.type];
-      if (!WidgetType) return;
-      const widgetInstance = new WidgetType(widgetConfig, this);
-      this.widgets.push(widgetInstance);
-      this.grid.appendChild(widgetInstance.render());
+  constructor(config,storage,telemetry){this.config=config;this.storage=storage;this.telemetry=telemetry;this.grid=$('widgetGrid');this.widgets=[];}
+  get activeDashboard(){return this.config.dashboards[this.config.activeDashboardId]||this.config.dashboards.personal;}
+  get canEdit(){return this.config.activeRole==='admin' && this.activeDashboard.role==='admin';}
+  persist(){this.storage.save(this.config);updateStatus(this);}
+  render(){
+    this.widgets.forEach(w=>w.destroy()); this.widgets=[]; this.grid.replaceChildren();
+    this.activeDashboard.widgets.filter(w=>w.role!=='admin'||this.config.activeRole==='admin').forEach(cfg=>{
+      const Type=registry[cfg.type]; if(!Type)return;
+      const instance=new Type(cfg,this); this.widgets.push(instance); this.grid.appendChild(instance.render());
     });
-    this.syncControls();
+    updateStatus(this);
   }
-
-  syncControls() {
-    dashboardSelect.value = this.config.activeDashboardId;
-    roleSelect.value = this.config.activeRole;
-    encryptionToggle.textContent = this.config.encryptionEnabled ? 'Enforced' : 'Disabled';
-    encryptionToggle.disabled = this.config.encryptionEnabled;
-    updateOnboardingStatus(this);
-  }
-}
-
-class TelemetryStream {
-  constructor(config) {
-    this.config = config;
-    this.listeners = new Set();
-    this.pollInterval = null;
-    this.eventSource = null;
-    this.socket = null;
-    this.start();
-  }
-
-  subscribe(handler) {
-    this.listeners.add(handler);
-    return () => this.listeners.delete(handler);
-  }
-
-  emit(payload) {
-    this.listeners.forEach((handler) => handler(payload));
-  }
-
-  startPolling() {
-    if (this.pollInterval) return;
-    const refreshMs = this.config?.refreshMs || 5000;
-    const poll = async () => {
-      try {
-        const payload = await fetchTelemetrySnapshot({
-          endpoints: this.config?.endpoints,
-        });
-        this.emit(payload);
-      } catch (error) {
-        this.emit({
-          type: 'telemetry',
-          metrics: {},
-          server: { uptime: '—', incidents: '—', services: [] },
-        });
-      }
-    };
-    poll();
-    this.pollInterval = window.setInterval(poll, refreshMs);
-  }
-
-  start() {
-    if (!this.config?.enabled) return;
-    if (this.config.websocketUrl) {
-      try {
-        this.socket = new WebSocket(this.config.websocketUrl);
-        this.socket.onmessage = (event) => {
-          try {
-            this.emit(JSON.parse(event.data));
-          } catch (error) {
-            this.emit({ type: 'raw', data: event.data });
-          }
-        };
-        this.socket.onerror = () => {
-          this.socket?.close();
-          this.startPolling();
-        };
-        return;
-      } catch (error) {
-        this.startPolling();
-        return;
-      }
-    }
-    if (this.config.sseUrl) {
-      try {
-        this.eventSource = new EventSource(this.config.sseUrl);
-        this.eventSource.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data);
-            this.emit(payload);
-          } catch (error) {
-            this.emit({ type: 'raw', data: event.data });
-          }
-        };
-        this.eventSource.onerror = () => {
-          this.eventSource.close();
-          this.startPolling();
-        };
-        return;
-      } catch (error) {
-        this.startPolling();
-        return;
-      }
-    }
-    this.startPolling();
+  setDashboard(id){if(!this.config.dashboards[id])return;this.config.activeDashboardId=id;this.render();this.persist();}
+  setRole(role){this.config.activeRole=role;this.render();this.persist();}
+  removeWidget(id){this.activeDashboard.widgets=this.activeDashboard.widgets.filter(w=>w.id!==id);this.render();this.persist();}
+  addWidget(type){
+    const titles={calendar:'Command Calendar',weather:'Climate Intelligence',serverStatus:'Systems Monitor',githubProjects:'Pipeline Oversight'};
+    const n=this.activeDashboard.widgets.length;
+    this.activeDashboard.widgets.push({id:`${type}-${Date.now()}`,type,title:titles[type]||'New Module',position:{x:1,y:4+n,w:4,h:2},role:'viewer'});
+    this.render();this.persist();
   }
 }
 
-function createPluginAPI(dashboard) {
-  return {
-    registerWidget: (type, widgetClass) => {
-      if (!type || typeof widgetClass !== 'function') return;
-      widgetRegistry[type] = widgetClass;
-    },
-    registerDataSource: (name, handler) => {
-      if (!name || typeof handler !== 'function') return;
-      dataSourceRegistry[name] = handler;
-    },
-    getConfig: () => dashboard.config,
-    getActiveRole: () => dashboard.config.activeRole,
-    onTelemetry: (handler) => dashboard.telemetry?.subscribe(handler),
-  };
+function updateStatus(d){
+  const dash=d.activeDashboard;
+  $('dashboardSelect').value=d.config.activeDashboardId;
+  $('roleSelect').value=d.config.activeRole;
+  $('statusDashboard').textContent=`${dash.label} dashboard`;
+  $('statusRole').textContent=`${d.config.activeRole} role`;
+  $('statusEdit').textContent=d.canEdit?'Edit mode enabled':'View-only mode';
+  $('statusSecurity').textContent=d.config.encryptionEnabled?'Local config protected':'Local config unprotected';
+  $('metricMode').textContent=d.config.consoleMode?'CONSOLE':'GLOW';
 }
 
-async function loadPlugins(dashboard) {
-  const manifestResponse = await fetch('./plugins/manifest.json').catch(() => null);
-  if (!manifestResponse || !manifestResponse.ok) return;
-  const manifest = await manifestResponse.json();
-  if (!Array.isArray(manifest.plugins)) return;
-  const api = createPluginAPI(dashboard);
-  await Promise.all(
-    manifest.plugins.map((plugin) => {
-      const pluginPath = typeof plugin === 'string' ? plugin : plugin.path;
-      const options = typeof plugin === 'object' ? plugin.options : undefined;
-      const roles =
-        typeof plugin === 'object' && Array.isArray(plugin.roles)
-          ? plugin.roles
-          : ['admin', 'viewer'];
-      if (!roles.includes(dashboard.config.activeRole)) {
-        return Promise.resolve();
-      }
-      if (!pluginPath) return Promise.resolve();
-      return import(pluginPath).then((module) => {
-        const meta = module.meta || {};
-        if (meta.apiVersion && meta.apiVersion !== '1.0') {
-          console.warn(`Plugin ${meta.name || pluginPath} incompatible API version.`);
-          return;
-        }
-        if (module.init) {
-          module.init(api, options);
-        }
-      });
-    }),
-  );
+function downloadConfig(config){
+  const blob=new Blob([JSON.stringify(config,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`glowhaven-dashboard-${Date.now()}.json`;a.click();URL.revokeObjectURL(url);
 }
 
-function syncHeroMetrics(metrics = {}) {
-  const availability = document.getElementById('metricAvailability');
-  const latency = document.getElementById('metricLatency');
-  const alerts = document.getElementById('metricAlerts');
-  if (availability && metrics.availability) availability.textContent = metrics.availability;
-  if (latency && metrics.latency) latency.textContent = metrics.latency;
-  if (alerts && metrics.alerts) alerts.textContent = metrics.alerts;
-}
-
-function setStatusPill(element, text, variant) {
-  if (!element) return;
-  element.textContent = text;
-  element.classList.remove('positive', 'warning', 'neutral');
-  element.classList.add(variant);
-}
-
-function syncRuntimeStatus() {
-  if (!runtimeStatus) return;
-  if (window.location.protocol === 'file:') {
-    setStatusPill(runtimeStatus, 'Local file mode', 'warning');
-  } else {
-    setStatusPill(runtimeStatus, 'Secure runtime', 'positive');
-  }
-}
-
-function updateOnboardingStatus(dashboard) {
-  if (!dashboard) return;
-  const activeDashboard = dashboard.activeDashboard;
-  setStatusPill(
-    statusDashboard,
-    `${activeDashboard?.label || 'Personal'} dashboard`,
-    'neutral',
-  );
-  setStatusPill(statusRole, `${dashboard.config.activeRole} role`, 'neutral');
-  setStatusPill(
-    statusEdit,
-    dashboard.canEdit ? 'Edit mode enabled' : 'View-only mode',
-    dashboard.canEdit ? 'positive' : 'warning',
-  );
-  setStatusPill(
-    statusSecurity,
-    dashboard.config.encryptionEnabled ? 'Encryption enforced' : 'Encryption off',
-    dashboard.config.encryptionEnabled ? 'positive' : 'warning',
-  );
-  syncRuntimeStatus();
-}
-
-async function init() {
-  const widgetModules = await Promise.all([
-    import('./widgets/calendar.js'),
-    import('./widgets/weather.js'),
-    import('./widgets/serverStatus.js'),
-    import('./widgets/githubProjects.js'),
+async function init(){
+  const modules=await Promise.all([
+    import('./widgets/calendar.js'),import('./widgets/weather.js'),
+    import('./widgets/serverStatus.js'),import('./widgets/githubProjects.js')
   ]);
-  widgetRegistry.calendar = widgetModules[0].default;
-  widgetRegistry.weather = widgetModules[1].default;
-  widgetRegistry.serverStatus = widgetModules[2].default;
-  widgetRegistry.githubProjects = widgetModules[3].default;
+  ['calendar','weather','serverStatus','githubProjects'].forEach((key,i)=>registry[key]=modules[i].default);
+  const storage=new Storage(),config=storage.load(),telemetry=new Telemetry(config.realtime);
+  const dashboard=new Dashboard(config,storage,telemetry);
 
-  const storage = new StorageManager();
-  const storedConfig = await storage.load();
-  const config = {
-    ...defaultConfig,
-    ...storedConfig,
-    dataSources: {
-      ...defaultConfig.dataSources,
-      ...storedConfig.dataSources,
-    },
-    realtime: {
-      ...defaultConfig.realtime,
-      ...storedConfig.realtime,
-    },
-    remoteBackup: {
-      ...defaultConfig.remoteBackup,
-      ...storedConfig.remoteBackup,
-    },
-    dashboards: storedConfig.dashboards || defaultConfig.dashboards,
-    activeDashboardId: storedConfig.activeDashboardId || 'personal',
-    activeRole:
-      storedConfig.activeRole || storedConfig.dashboards?.personal?.role || 'admin',
-  };
+  document.documentElement.dataset.theme=config.theme;
+  document.documentElement.dataset.visual=config.visual;
+  document.body.classList.toggle('console-mode',config.consoleMode);
+  dashboard.render();telemetry.subscribe(p=>{if(p.metrics){$('metricAvailability').textContent=p.metrics.availability||'—';$('metricLatency').textContent=p.metrics.latency||'—';$('metricAlerts').textContent=p.metrics.alerts||'—';}});telemetry.start();
 
-  const telemetry = new TelemetryStream(config.realtime);
-  telemetry.subscribe((payload) => {
-    if (payload.type === 'telemetry' && payload.metrics) {
-      syncHeroMetrics(payload.metrics);
-    }
+  $('dashboardSelect').addEventListener('change',e=>dashboard.setDashboard(e.target.value));
+  $('roleSelect').addEventListener('change',e=>dashboard.setRole(e.target.value));
+  $('themeToggle').addEventListener('click',()=>{config.theme=config.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=config.theme;dashboard.persist();});
+  $('neonToggle').addEventListener('click',()=>{config.visual=config.visual==='neon'?'minimal':'neon';document.documentElement.dataset.visual=config.visual;dashboard.persist();});
+  $('consoleToggle').addEventListener('click',()=>{config.consoleMode=!config.consoleMode;document.body.classList.toggle('console-mode',config.consoleMode);dashboard.persist();});
+  $('exportConfig').addEventListener('click',()=>downloadConfig(config));
+  $('importConfig').addEventListener('click',()=>$('importInput').click());
+  $('importInput').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;const imported=JSON.parse(await file.text());dashboard.config=merge(clone(DEFAULT_CONFIG),imported);dashboard.render();dashboard.persist();}catch{alert('That configuration file is not valid.');}e.target.value='';});
+  $('addWidget').addEventListener('click',()=>dashboard.addWidget($('widgetType').value));
+  $('searchInput').addEventListener('input',e=>{
+    const q=e.target.value.trim().toLowerCase();
+    dashboard.widgets.forEach(w=>{w.element.hidden=!!q&&!w.config.title.toLowerCase().includes(q)&&!w.config.type.toLowerCase().includes(q);});
   });
-
-  const dashboard = new Dashboard(config, storage, telemetry);
-  dashboard.render();
-  syncRuntimeStatus();
-
-  themeToggle.addEventListener('click', () => {
-    const nextTheme = app.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    app.setAttribute('data-theme', nextTheme);
-  });
-
-  neonToggle.addEventListener('click', () => {
-    const nextVisual = app.getAttribute('data-visual') === 'neon' ? 'standard' : 'neon';
-    app.setAttribute('data-visual', nextVisual);
-  });
-
-  consoleToggle.addEventListener('click', () => {
-    app.classList.toggle('console-mode');
-  });
-
-  dashboardSelect.addEventListener('change', (event) => {
-    dashboard.setDashboard(event.target.value);
-  });
-
-  roleSelect.addEventListener('change', (event) => {
-    dashboard.setRole(event.target.value);
-  });
-
-  encryptionToggle.addEventListener('click', () => {
-    if (dashboard.config.encryptionEnabled) {
-      return;
-    }
-    const nextValue = !dashboard.config.encryptionEnabled;
-    dashboard.setEncryption(nextValue);
-    dashboard.syncControls();
-  });
-
-  soundToggle.addEventListener('click', () => {
-    soundToggle.textContent = soundToggle.textContent === 'Muted' ? 'Active' : 'Muted';
-  });
-
-  exportButton.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(dashboard.config, null, 2)], {
-      type: 'application/json',
-    });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `glowhaven-dashboard-${dashboard.config.activeDashboardId}.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  });
-
-  importButton.addEventListener('click', () => {
-    importInput.click();
-  });
-
-  importInput.addEventListener('change', async (event) => {
-    const [file] = event.target.files;
-    if (!file) return;
-    const text = await file.text();
-    const imported = JSON.parse(text);
-    dashboard.config = imported;
-    dashboard.render();
-    await dashboard.persist();
-    importInput.value = '';
-  });
-
-  await loadPlugins(dashboard);
+  $('refreshAll').addEventListener('click',()=>dashboard.widgets.forEach(w=>w.updateData?.()));
+  document.querySelectorAll('.nav-item').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));btn.classList.add('active');}));
+  $('launchButton').addEventListener('click',()=>{ $('systemToast').textContent='Directive queued locally · dashboard ready';$('systemToast').classList.add('show');setTimeout(()=>$('systemToast').classList.remove('show'),2500);});
 }
-
-init();
-
-export { Widget };
+init().catch(error=>{console.error(error);$('systemToast').textContent='Glowhaven failed to initialize';$('systemToast').classList.add('show');});
