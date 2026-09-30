@@ -1,196 +1,47 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Glowhaven Dashboard</title>
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body>
-    <div class="app" data-theme="dark" data-visual="neon">
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48" role="img" focusable="false">
-              <defs>
-                <linearGradient id="glowhaven-core" x1="0" x2="1" y1="0" y2="1">
-                  <stop offset="0%" stop-color="#ffd68a" />
-                  <stop offset="50%" stop-color="#f6b84d" />
-                  <stop offset="100%" stop-color="#f0a53b" />
-                </linearGradient>
-              </defs>
-              <polygon
-                points="24 4 40 14 40 34 24 44 8 34 8 14"
-                fill="url(#glowhaven-core)"
-              />
-              <circle cx="24" cy="24" r="6" fill="#0b0f1a" opacity="0.7" />
-            </svg>
-          </div>
-          <div>
-            <h1>Glowhaven</h1>
-            <p>Industries Command</p>
-          </div>
-        </div>
-        <nav class="nav">
-          <button class="nav-item active">Overview</button>
-          <button class="nav-item">Automations</button>
-          <button class="nav-item">Workflow</button>
-          <button class="nav-item">Devices</button>
-          <button class="nav-item">Analytics</button>
-          <button class="nav-item">Settings</button>
-        </nav>
-        <div class="sidebar-footer">
-          <div class="team-card">
-            <p class="eyebrow">Team</p>
-            <h3>Glowhaven Prime</h3>
-            <p class="muted">18 divisions · 7 regions</p>
-          </div>
-        </div>
-      </aside>
-
-      <main class="main">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">Good morning</p>
-            <h2>Glowhaven Dashboard — Orchestrate your global digital ecosystem with precision.</h2>
-          </div>
-          <div class="topbar-actions">
-            <div class="search">
-              <span>⌕</span>
-              <input type="text" placeholder="Search modules, automations, intelligence" />
-            </div>
-            <button class="pill" id="themeToggle">Toggle theme</button>
-            <button class="pill" id="neonToggle">Glow mode</button>
-            <button class="pill" id="consoleToggle">Console mode</button>
-            <button class="pill primary">Launch directive</button>
-          </div>
-        </header>
-
-        <section class="hero">
-          <div class="hero-card">
-            <div class="hero-text">
-              <p class="eyebrow">System pulse</p>
-              <h3>All critical services are within Glowhaven operational thresholds</h3>
-              <p class="muted">
-                Glowhaven is streaming real-time health telemetry from your most important stacks.
-              </p>
-              <div class="hero-actions">
-                <button class="pill primary">View status map</button>
-                <button class="pill ghost">Download briefing</button>
-              </div>
-            </div>
-            <div class="hero-metrics">
-              <div>
-                <p class="label">Availability</p>
-                <h4 id="metricAvailability">99.98%</h4>
-              </div>
-              <div>
-                <p class="label">Latency</p>
-                <h4 id="metricLatency">218ms</h4>
-              </div>
-              <div>
-                <p class="label">Alerts</p>
-                <h4 id="metricAlerts">2 open</h4>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="control-panel">
-          <div class="control-group">
-            <label class="label" for="dashboardSelect">Dashboard</label>
-            <select id="dashboardSelect" class="select">
-              <option value="personal">Personal</option>
-              <option value="team">Team</option>
-            </select>
-          </div>
-          <div class="control-group">
-            <label class="label" for="roleSelect">Role</label>
-            <select id="roleSelect" class="select">
-              <option value="admin">Admin</option>
-              <option value="viewer">Viewer</option>
-            </select>
-          </div>
-          <div class="control-group">
-            <label class="label" for="encryptionToggle">Encrypt config</label>
-            <button class="pill ghost" id="encryptionToggle">Enforced</button>
-          </div>
-          <div class="control-group">
-            <label class="label" for="soundToggle">Ambient sound</label>
-            <button class="pill ghost" id="soundToggle">Muted</button>
-          </div>
-          <div class="control-group">
-            <label class="label" for="runtimeStatus">Runtime</label>
-            <span class="status-pill neutral" id="runtimeStatus">Secured</span>
-          </div>
-          <div class="control-actions">
-            <button class="pill" id="exportConfig">Export config</button>
-            <button class="pill" id="importConfig">Import config</button>
-            <input type="file" id="importInput" accept="application/json" hidden />
-          </div>
-        </section>
-
-        <section class="onboarding">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow">Quick start</p>
-              <h3>Secure Glowhaven access in four steps</h3>
-            </div>
-            <p class="muted">
-              Follow this short guide to configure dashboards, roles, and operational widgets.
-            </p>
-          </div>
-          <div class="onboarding-grid">
-            <article class="onboarding-card">
-              <h4>1. Select a command deck</h4>
-              <p class="muted">
-                Switch between Personal or Team to load the right operational layout.
-              </p>
-              <span class="status-pill neutral" id="statusDashboard">Personal dashboard</span>
-            </article>
-            <article class="onboarding-card">
-              <h4>2. Set your role</h4>
-              <p class="muted">
-                Admins can edit the grid. Viewers receive a read-only experience.
-              </p>
-              <span class="status-pill neutral" id="statusRole">Admin role</span>
-            </article>
-            <article class="onboarding-card">
-              <h4>3. Arrange widgets</h4>
-              <p class="muted">
-                Grab the “Drag” pill to move cards. Pull the corner to resize.
-              </p>
-              <span class="status-pill neutral" id="statusEdit">Edit mode enabled</span>
-            </article>
-            <article class="onboarding-card">
-              <h4>4. Secure and save</h4>
-              <p class="muted">
-                Encryption is enforced. Export your config to keep a portable backup.
-              </p>
-              <span class="status-pill neutral" id="statusSecurity">Encryption enforced</span>
-            </article>
-          </div>
-        </section>
-
-        <section class="widget-area">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow">Widgets</p>
-              <h3>Modular intelligence grid</h3>
-            </div>
-            <p class="muted">Drag, resize, and orchestrate modules across teams.</p>
-          </div>
-          <div class="widget-grid" id="widgetGrid"></div>
-        </section>
-      </main>
-    </div>
-
-    <script type="module" src="app.js"></script>
-  </body>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07090d"><meta name="description" content="Glowhaven Industries modular command center">
+<title>Glowhaven Industries — Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand"><div class="brand-mark">G</div><div><strong>Glowhaven</strong><span>Industries Command</span></div></div>
+  <nav class="nav" aria-label="Primary">
+    <button class="nav-item active">Overview</button><button class="nav-item">Automations</button><button class="nav-item">Workflow</button><button class="nav-item">Devices</button><button class="nav-item">Analytics</button><button class="nav-item">Settings</button>
+  </nav>
+  <div class="sidebar-card"><span class="eyebrow">Operations</span><strong>Glowhaven Prime</strong><span>Local-first command fabric</span><div class="online-dot"><i></i> Systems online</div></div>
+</aside>
+<main class="main">
+<header class="topbar">
+ <div><span class="eyebrow">Glowhaven / Command</span><h1>Control everything. Keep it yours.</h1><p class="muted">A modular operating surface for your digital ecosystem.</p></div>
+ <div class="top-actions"><label class="search"><span>⌕</span><input id="searchInput" placeholder="Search modules…"></label><button class="pill" id="themeToggle">Theme</button><button class="pill" id="neonToggle">Visual</button><button class="pill" id="consoleToggle">Console</button><button class="pill primary" id="launchButton">Launch directive</button></div>
+</header>
+<section class="hero-card">
+ <div class="hero-copy"><span class="eyebrow">System pulse</span><h2>One command surface for every signal.</h2><p class="muted">Monitor services, pipelines, weather, and activity from a single responsive workspace.</p><div class="hero-actions"><button class="pill primary" id="refreshAll">Refresh all</button><span class="status-pill positive">Live runtime</span></div></div>
+ <div class="hero-metrics"><div><span>Availability</span><strong id="metricAvailability">—</strong></div><div><span>Latency</span><strong id="metricLatency">—</strong></div><div><span>Alerts</span><strong id="metricAlerts">—</strong></div><div><span>Mode</span><strong id="metricMode">GLOW</strong></div></div>
+</section>
+<section class="control-panel">
+ <label><span>Dashboard</span><select id="dashboardSelect"><option value="personal">Personal</option><option value="team">Team</option></select></label>
+ <label><span>Role</span><select id="roleSelect"><option value="admin">Admin</option><option value="viewer">Viewer</option></select></label>
+ <div class="control-status"><span>Security</span><b id="statusSecurity">Local config protected</b></div>
+ <div class="control-status"><span>Editing</span><b id="statusEdit">Edit mode enabled</b></div>
+ <div class="control-actions"><select id="widgetType"><option value="githubProjects">GitHub pipelines</option><option value="serverStatus">System monitor</option><option value="weather">Weather</option><option value="calendar">Calendar</option></select><button class="pill" id="addWidget">Add module</button><button class="pill" id="exportConfig">Export</button><button class="pill" id="importConfig">Import</button><input hidden type="file" id="importInput" accept=".json,application/json"></div>
+</section>
+<section class="quick-grid">
+ <article><span class="eyebrow">Deck</span><h3 id="statusDashboard">Personal dashboard</h3><p class="muted">Switch command layouts without rebuilding the workspace.</p></article>
+ <article><span class="eyebrow">Access</span><h3 id="statusRole">Admin role</h3><p class="muted">Role-aware widgets keep editing separate from viewing.</p></article>
+ <article><span class="eyebrow">Architecture</span><h3>Plugin ready</h3><p class="muted">Modules are loaded independently and can fail safely.</p></article>
+</section>
+<section class="widget-area"><div class="section-header"><div><span class="eyebrow">Workspace</span><h2>Modular intelligence</h2></div><span class="muted">Drag cards to reorganize • Add modules as needed</span></div><div class="widget-grid" id="widgetGrid"></div></section>
+<div class="toast" id="systemToast" role="status"></div>
+</main>
+</div>
+<script type="module" src="app.js"></script>
+</body>
 </html>
