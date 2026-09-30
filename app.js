@@ -157,7 +157,6 @@ class Telemetry {
   start() {
     if (!this.config?.enabled || this.timer) return;
     const poll = async () => {
-      try { this.listeners.forEach((fn) => fn(fetchTelemetrySnapshot(this.config))); } catch {}
       try {
         const data = await fetchTelemetrySnapshot(this.config);
         this.listeners.forEach((fn) => fn(data));
