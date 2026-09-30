@@ -1,11 +1,16 @@
 {
   "name": "glowhaven-dashboard",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "private": true,
   "type": "module",
-  "description": "Glowhaven Industries modular command center",
+  "description": "Secure company operations platform for monitoring, workflows, integrations, and auditability",
   "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
     "test": "node --test",
-    "check": "node --check app.js && node --check dataSources.js && node --check widgets/calendar.js && node --check widgets/weather.js && node --check widgets/serverStatus.js && node --check widgets/githubProjects.js && node --check widgets/operations.js"
+    "check": "node --check server.js && node --check app.js && node --check dataSources.js && node --check server/auth.js && node --check server/security.js && node --check server/storage.js && node --check server/oidc.js && node --check widgets/calendar.js && node --check widgets/weather.js && node --check widgets/serverStatus.js && node --check widgets/githubProjects.js && node --check widgets/operations.js"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
