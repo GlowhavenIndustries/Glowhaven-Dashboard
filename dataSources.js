@@ -268,11 +268,11 @@ export async function fetchWeather(config = {}) {
     const wind = Number(data.wind?.speed);
 
     return {
-      temp: Number.isFinite(temp) ? `${Math.round(temp)}°` : '—',
-      conditions: `${data.weather?.[0]?.main || 'Clear'} · ${Number.isFinite(humidity) ? humidity : '—'}% humidity`,
+      temp: Number.isFinite(temp) ? `${Math.round(temp)}°` : 'N/A',
+      conditions: `${data.weather?.[0]?.main || 'Clear'} · ${Number.isFinite(humidity) ? humidity : 'N/A'}% humidity`,
       wind: Number.isFinite(wind)
         ? `${Math.round(wind)} ${units === 'imperial' ? 'mph' : 'm/s'}`
-        : '—',
+        : 'N/A',
       aqi: 'Not available',
       uv: 'Not available',
     };
@@ -299,7 +299,7 @@ export async function fetchWeather(config = {}) {
     const weatherData = await fetchJson(weatherUrl.toString());
     const current = weatherData.current || {};
 
-    let aqiValue = '—';
+    let aqiValue = 'N/A';
     try {
       const aqiUrl = new URL('https://air-quality-api.open-meteo.com/v1/air-quality');
       aqiUrl.searchParams.set('latitude', location.lat);
@@ -318,17 +318,17 @@ export async function fetchWeather(config = {}) {
     const uv = Number(current.uv_index);
 
     return {
-      temp: Number.isFinite(temperature) ? `${Math.round(temperature)}°` : '—',
-      conditions: `${mapWeatherCode(current.weather_code)} · ${Number.isFinite(humidity) ? humidity : '—'}% humidity`,
+      temp: Number.isFinite(temperature) ? `${Math.round(temperature)}°` : 'N/A',
+      conditions: `${mapWeatherCode(current.weather_code)} · ${Number.isFinite(humidity) ? humidity : 'N/A'}% humidity`,
       wind: Number.isFinite(wind)
         ? `${Math.round(wind)} ${units === 'imperial' ? 'mph' : 'km/h'}`
-        : '—',
+        : 'N/A',
       aqi: aqiValue,
-      uv: Number.isFinite(uv) ? String(uv) : '—',
+      uv: Number.isFinite(uv) ? String(uv) : 'N/A',
     };
   }
 
-  return { temp: '—', conditions: 'Unavailable', wind: '—', aqi: '—', uv: '—' };
+  return { temp: 'N/A', conditions: 'Unavailable', wind: 'N/A', aqi: 'N/A', uv: 'N/A' };
 }
 
 export async function fetchServerStatus(config = {}) {
@@ -449,7 +449,7 @@ export async function fetchBusinessKpis(config = {}) {
   const data = await fetchConfiguredJson(config, fallback);
   const metrics = normalizeItems(data, ['metrics', 'kpis']).map((metric) => ({
     label: String(metric.label || metric.name || 'Metric'),
-    value: String(metric.value ?? '—'),
+    value: String(metric.value ?? 'N/A'),
     change: metric.change == null ? '' : String(metric.change),
     trend: metric.trend || 'neutral',
   }));
