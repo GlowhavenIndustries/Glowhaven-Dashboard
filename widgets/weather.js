@@ -1,5 +1,20 @@
-import { Widget } from '../app.js';import { fetchWeather } from '../dataSources.js';
-export default class WeatherWidget extends Widget{
- renderContent(){const w=document.createElement('div');w.className='widget-content';this.temp=document.createElement('div');this.temp.className='widget-stat';this.conditions=document.createElement('p');this.conditions.className='muted';const grid=document.createElement('div');grid.className='weather-grid';this.fields={wind:'Wind',aqi:'AQI',uv:'UV'};Object.entries(this.fields).forEach(([key,label])=>{const box=document.createElement('div');box.innerHTML=`<p class="label">${label}</p><strong>N/A</strong>`;this[key]=box.querySelector('strong');grid.appendChild(box)});w.append(this.temp,this.conditions,grid);this.updateData();this.interval=setInterval(()=>this.updateData(),this.dashboard.config.dataSources.weather.refreshMs||60000);return w}
- async updateData(){try{const d=await fetchWeather(this.dashboard.config.dataSources.weather);this.temp.textContent=d.temp;this.conditions.textContent=d.conditions;this.wind.textContent=d.wind;this.aqi.textContent=d.aqi;this.uv.textContent=d.uv}catch{this.temp.textContent='N/A';this.conditions.textContent='Weather feed unavailable';}}
+import { Widget } from '../app.js';
+import { fetchWeather } from '../dataSources.js';
+
+export default class WeatherWidget extends Widget {
+  renderContent() {
+    const root = document.createElement('div'); root.className = 'widget-content';
+    this.location = document.createElement('div'); this.location.className = 'eyebrow';
+    this.temp = document.createElement('div'); this.temp.className = 'widget-stat';
+    this.conditions = document.createElement('p'); this.conditions.className = 'muted';
+    const grid = document.createElement('div'); grid.className = 'weather-grid';
+    this.fields = {};
+    [['wind','Wind'],['aqi','AQI'],['uv','UV']].forEach(([key,label]) => { const box = document.createElement('div'); const p=document.createElement('p'); p.className='label'; p.textContent=label; const strong=document.createElement('strong'); strong.textContent='N/A'; box.append(p,strong); this.fields[key]=strong; grid.append(box); });
+    root.append(this.location, this.temp, this.conditions, grid);
+    this.updateData(); this.every(() => this.updateData(), 60000); return root;
+  }
+  async updateData() {
+    try { const data = await fetchWeather(); this.location.textContent = data.city || 'Weather'; this.temp.textContent = data.temp || 'N/A'; this.conditions.textContent = data.conditions || 'Weather unavailable'; this.fields.wind.textContent=data.wind||'N/A'; this.fields.aqi.textContent=data.aqi||'N/A'; this.fields.uv.textContent=data.uv||'N/A'; }
+    catch { this.temp.textContent='N/A'; this.conditions.textContent='Weather unavailable'; }
+  }
 }
