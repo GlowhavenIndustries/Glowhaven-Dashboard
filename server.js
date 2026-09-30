@@ -70,31 +70,122 @@ async function upsertIntegration(user, kind, input) {
   await persist(); await audit(user, 'integration.updated', { kind, endpointConfigured: Boolean(endpoint), secretChanged: input.secret !== undefined || Boolean(input.clearSecret) });
   return safeIntegration(item);
 }
+async function openMeteo(settings = {}) {
+  const location = settings.location || {};
+  const lat = Number(location.lat);
+  const lon = Number(location.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { configured: false };
+  const url = new URL('https://api.open-meteo.com/v1/forecast');
+  url.searchParams.set('latitude', String(lat));
+  url.searchParams.set('longitude', String(lon));
+  url.searchParams.set('current', 'temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,uv_index');
+  url.searchParams.set('timezone', 'auto');
+  if ((settings.units || 'imperial') === 'imperial') {
+    url.searchParams.set('temperature_unit', 'fahrenheit');
+    url.searchParams.set('wind_speed_unit', 'mph');
+  }
+  return remoteJson(url.toString());
+}
+
 async function integrationData(kind) {
   const integration = getIntegration(kind);
+
+  if (kind === 'weather') {
+    const data = await openMeteo(integration.settings);
+    if (!data.configured) return { configured: false };
+    const current = data.current || {};
+    const labels = { 0: 'Clear', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Rime fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Dense drizzle', 61: 'Rain', 63: 'Rain', 65: 'Heavy rain', 71: 'Snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Rain showers', 81: 'Heavy rain showers', 82: 'Violent rain showers', 95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Thunderstorm with hail' };
+    const aqiUrl = new URL('https://air-quality-api.open-meteo.com/v1/air-quality');
+    aqiUrl.searchParams.set('latitude', String(integration.settings.location.lat));
+    aqiUrl.searchParams.set('longitude', String(integration.settings.location.lon));
+    aqiUrl.searchParams.set('current', 'us_aqi');
+    let aqi = 'N/A';
+    try { const air = await remoteJson(aqiUrl.toString()); aqi = String(air.current?.us_aqi ?? 'N/A'); } catch {}
+    const imperial = (integration.settings.units || 'imperial') === 'imperial';
+    return {
+      temp: Number.isFinite(Number(current.temperature_2m)) ? Math.round(Number(current.temperature_2m)) + '°' : 'N/A',
+      conditions: (labels[current.weather_code] || 'Cloudy') + ' · ' + (current.relative_humidity_2m ?? 'N/A') + '% humidity',
+      wind: Number.isFinite(Number(current.wind_speed_10m)) ? Math.round(Number(current.wind_speed_10m)) + ' ' + (imperial ? 'mph' : 'km/h') : 'N/A',
+      aqi,
+      uv: String(current.uv_index ?? 'N/A'),
+      city: integration.settings.location.city || '',
+    };
+  }
+
+  if (kind === 'calendar') {
+    const settings = integration.settings || {};
+    if (settings.provider === 'google' && integration.endpoint) {
+      const url = new URL(integration.endpoint);
+      url.searchParams.set('timeMin', new Date().toISOString());
+      url.searchParams.set('maxResults', '5');
+      url.searchParams.set('singleEvents', 'true');
+      url.searchParams.set('orderBy', 'startTime');
+      url.searchParams.set('key', getSecret(kind));
+      const data = await remoteJson(url.toString());
+      return { events: (data.items || []).map((event) => ({ title: event.summary || 'Untitled', time: event.start?.dateTime || event.start?.date || '' })) };
+    }
+    if (settings.provider === 'outlook' && integration.endpoint) {
+      const data = await remoteJson(integration.endpoint, { headers: { ...authHeaders(integration) } });
+      return { events: (data.value || []).slice(0, 5).map((event) => ({ title: event.subject || 'Untitled', time: event.start?.dateTime || '' })) };
+    }
+    if (settings.provider === 'github' && settings.org) {
+      const items = await remoteJson('https://api.github.com/orgs/' + encodeURIComponent(settings.org) + '/events?per_page=5', { headers: { 'X-GitHub-Api-Version': '2022-11-28' } });
+      return { events: (Array.isArray(items) ? items : []).map((event) => ({ title: (event.type || 'Activity').replace(/Event$/, '') + ' · ' + (event.repo?.name || settings.org), time: event.created_at || '' })) };
+    }
+    return { events: [] };
+  }
+
+  if (kind === 'activity') {
+    const settings = integration.settings || {};
+    if (settings.provider === 'github' && settings.org) {
+      const items = await remoteJson('https://api.github.com/orgs/' + encodeURIComponent(settings.org) + '/events?per_page=8', { headers: { 'X-GitHub-Api-Version': '2022-11-28' } });
+      return { items: (Array.isArray(items) ? items : []).map((event) => ({ title: (event.type || 'Activity').replace(/Event$/, ''), detail: event.repo?.name || settings.org, time: event.created_at || null })) };
+    }
+    if (integration.endpoint) return remoteJson(integration.endpoint, { headers: authHeaders(integration) });
+    return { items: [] };
+  }
+
   if (kind === 'github') {
     const repos = Array.isArray(integration.settings?.repositories) ? integration.settings.repositories : [];
+    if (!repos.length) return { summary: 'No repositories configured', items: [], lastSync: new Date().toISOString() };
     const headers = { ...authHeaders(integration), 'X-GitHub-Api-Version': '2022-11-28' };
     const items = await Promise.all(repos.slice(0, 20).map(async (repo) => {
-      const owner = String(repo.owner || '').trim(); const name = String(repo.repo || '').trim(); if (!owner || !name) return null;
-      try { const data = await remoteJson('https://api.github.com/repos/' + encodeURIComponent(owner) + '/' + encodeURIComponent(name) + '/actions/runs?per_page=1', { headers }); const run = data.workflow_runs?.[0]; return { name: owner + '/' + name, status: run?.conclusion || run?.status || 'No runs', updatedAt: run?.updated_at || null }; }
-      catch { return { name: owner + '/' + name, status: 'Unavailable', updatedAt: null }; }
+      const owner = String(repo.owner || '').trim();
+      const name = String(repo.repo || '').trim();
+      if (!owner || !name) return null;
+      try {
+        const data = await remoteJson('https://api.github.com/repos/' + encodeURIComponent(owner) + '/' + encodeURIComponent(name) + '/actions/runs?per_page=1', { headers });
+        const run = data.workflow_runs?.[0];
+        return { name: owner + '/' + name, status: run?.conclusion || run?.status || 'No runs', updatedAt: run?.updated_at || null };
+      } catch {
+        return { name: owner + '/' + name, status: 'Unavailable', updatedAt: null };
+      }
     }));
     return { summary: repos.length + ' repositories', items: items.filter(Boolean), lastSync: new Date().toISOString() };
   }
+
   if (kind === 'services') {
     const endpoints = Array.isArray(integration.settings?.endpoints) ? integration.settings.endpoints : [];
     const results = await Promise.all(endpoints.slice(0, 50).map(async (entry) => {
-      const target = typeof entry === 'string' ? entry : entry?.url; const name = typeof entry === 'object' ? entry?.name : ''; const started = Date.now();
-      try { await remoteJson(target, { headers: typeof entry === 'object' ? { ...authHeaders(integration), ...(entry.headers || {}) } : authHeaders(integration) }); return { name: name || new URL(target).hostname, ok: true, latency: Date.now() - started }; }
-      catch { return { name: name || target, ok: false, latency: Date.now() - started }; }
+      const target = typeof entry === 'string' ? entry : entry?.url;
+      const name = typeof entry === 'object' ? entry?.name : '';
+      const started = Date.now();
+      try {
+        await remoteJson(target, { headers: typeof entry === 'object' ? { ...authHeaders(integration), ...(entry.headers || {}) } : authHeaders(integration) });
+        return { name: name || new URL(target).hostname, ok: true, latency: Date.now() - started };
+      } catch {
+        return { name: name || target, ok: false, latency: Date.now() - started };
+      }
     }));
-    const failures = results.filter((x) => !x.ok).length; const healthy = results.length - failures;
+    const failures = results.filter((x) => !x.ok).length;
+    const healthy = results.length - failures;
     return { uptime: results.length ? ((healthy / results.length) * 100).toFixed(2) + '%' : 'Not configured', incidents: failures + ' incidents', failures, services: results.map((x) => ({ name: x.name, status: x.ok ? 'Stable' : 'Offline', latency: x.latency })), latencyAvg: results.length ? Math.round(results.reduce((s, x) => s + x.latency, 0) / results.length) : 0 };
   }
+
   if (!integration.endpoint) return integration.settings?.items ? { items: integration.settings.items } : { items: [] };
   return remoteJson(integration.endpoint, { headers: authHeaders(integration) });
 }
+
 async function runAutomation(user, payload) {
   const integration = getIntegration('automations'); if (!integration.endpoint) throw fail('Automation execution endpoint is not configured', 409);
   const result = await remoteJson(integration.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders(integration) }, body: JSON.stringify(payload || {}) });
