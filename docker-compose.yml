@@ -1,0 +1,24 @@
+services:
+  glowhaven:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      NODE_ENV: production
+      PORT: 5173
+      GLOWHAVEN_MASTER_KEY: ${GLOWHAVEN_MASTER_KEY:?Set GLOWHAVEN_MASTER_KEY in the deployment environment}
+      GLOWHAVEN_DATA_DIR: /app/data
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
+      OIDC_SCOPE: ${OIDC_SCOPE:-openid profile email}
+      OIDC_ADMIN_EMAILS: ${OIDC_ADMIN_EMAILS:-}
+      OIDC_ADMIN_GROUPS: ${OIDC_ADMIN_GROUPS:-}
+      GLOWHAVEN_ALLOW_PRIVATE_NETWORK: ${GLOWHAVEN_ALLOW_PRIVATE_NETWORK:-0}
+    volumes:
+      - glowhaven-data:/app/data
+
+volumes:
+  glowhaven-data:
