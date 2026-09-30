@@ -65,13 +65,31 @@ export class Widget {
 
   enableDrag(card) {
     card.setAttribute('draggable', 'true');
-    const onDragStart = () => card.classList.add('is-dragging');
+    const onDragStart = (event) => {
+      card.classList.add('is-dragging');
+      event.dataTransfer?.setData('text/plain', this.config.id);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    };
     const onDragEnd = () => card.classList.remove('is-dragging');
+    const onDragOver = (event) => { event.preventDefault(); card.classList.add('drop-target'); };
+    const onDragLeave = () => card.classList.remove('drop-target');
+    const onDrop = (event) => {
+      event.preventDefault();
+      card.classList.remove('drop-target');
+      const sourceId = event.dataTransfer?.getData('text/plain');
+      if (sourceId) this.dashboard.moveWidget(sourceId, this.config.id);
+    };
     card.addEventListener('dragstart', onDragStart);
     card.addEventListener('dragend', onDragEnd);
+    card.addEventListener('dragover', onDragOver);
+    card.addEventListener('dragleave', onDragLeave);
+    card.addEventListener('drop', onDrop);
     this.cleanups.push(() => {
       card.removeEventListener('dragstart', onDragStart);
       card.removeEventListener('dragend', onDragEnd);
+      card.removeEventListener('dragover', onDragOver);
+      card.removeEventListener('dragleave', onDragLeave);
+      card.removeEventListener('drop', onDrop);
     });
   }
 
@@ -359,7 +377,59 @@ async function init() {
     } catch { notify('That configuration file is invalid'); }
     e.target.value = '';
   });
-  $('addWidget').addEventListener('click', () => dashboard.addWidget($('widgetType').value));
+  function populateSettings() {
+    $('settingsOrg').value = config.organization?.name || '';
+    const location = config.dataSources.weather?.openMeteo?.location || {};
+    $('settingsCity').value = location.city || '';
+    $('settingsLat').value = location.lat ?? '';
+    $('settingsLon').value = location.lon ?? '';
+    $('settingsServices').value = (config.dataSources.serverStatus?.endpoints || []).map((entry) => typeof entry === 'string' ? entry : entry.url).filter(Boolean).join('\\n');
+    $('settingsRepos').value = (config.dataSources.github?.repositories || []).map((entry) => `${entry.owner}/${entry.repo}`).join('\\n');
+    $('settingsGithubToken').value = config.dataSources.github?.token || '';
+    $('settingsKpi').value = config.dataSources.kpi?.endpoint || '';
+    $('settingsIncidents').value = config.dataSources.incidents?.endpoint || '';
+    $('settingsAutomations').value = config.dataSources.automations?.endpoint || '';
+    $('settingsActivity').value = config.dataSources.activity?.endpoint || '';
+  }
+
+  function saveSettings() {
+    const services = $('settingsServices').value.split(/\\n/).map((url) => url.trim()).filter(Boolean).map((url) => ({ url }));
+    const repositories = $('settingsRepos').value.split(/\\n/).map((line) => line.trim()).filter(Boolean).map((value) => {
+      const [owner, ...rest] = value.split('/');
+      return { owner, repo: rest.join('/') };
+    }).filter((entry) => entry.owner && entry.repo);
+
+    config.organization.name = $('settingsOrg').value.trim() || 'Your Company';
+    config.dataSources.serverStatus.endpoints = services;
+    config.dataSources.github.repositories = repositories;
+    config.dataSources.github.token = $('settingsGithubToken').value.trim();
+
+    const weather = config.dataSources.weather.openMeteo;
+    weather.location = {
+      city: $('settingsCity').value.trim(),
+      lat: Number($('settingsLat').value) || 0,
+      lon: Number($('settingsLon').value) || 0
+    };
+
+    config.dataSources.kpi.endpoint = $('settingsKpi').value.trim();
+    config.dataSources.incidents.endpoint = $('settingsIncidents').value.trim();
+    config.dataSources.automations.endpoint = $('settingsAutomations').value.trim();
+    config.dataSources.activity.endpoint = $('settingsActivity').value.trim();
+    if (config.dataSources.activity.endpoint) config.dataSources.activity.provider = 'http';
+
+    dashboard.render();
+    dashboard.persist();
+    $('settingsDialog').close();
+    notify('Company settings saved');
+  }
+
+  $('settingsButton').addEventListener('click', () => {
+    populateSettings();
+    $('settingsDialog').showModal();
+  });
+  $('settingsCancel').addEventListener('click', () => $('settingsDialog').close());
+  $('settingsSave').addEventListener('click', saveSettings);
+    $('addWidget').addEventListener('click', () => dashboard.addWidget($('widgetType').value));
   $('searchInput').addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
     dashboard.widgets.forEach((w) => {
