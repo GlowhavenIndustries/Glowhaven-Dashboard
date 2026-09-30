@@ -47,9 +47,14 @@ export function verifyApiKey(token, record) {
   }
   if (record.keyHash) {
     try {
-      const computed = hashToken(token);
+      const hmac = crypto.createHmac('sha256', 'glowhaven-legacy-key').update(String(token)).digest('hex');
+      const hmacExpected = Buffer.from(record.keyHash, 'utf8');
+      const hmacActual = Buffer.from(hmac, 'utf8');
+      if (hmacExpected.length === hmacActual.length && crypto.timingSafeEqual(hmacExpected, hmacActual)) return true;
+
+      const derived = crypto.scryptSync(token, Buffer.from('legacy-salt-0000', 'utf8'), 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString('hex');
       const expected = Buffer.from(record.keyHash, 'utf8');
-      const actual = Buffer.from(computed, 'utf8');
+      const actual = Buffer.from(derived, 'utf8');
       return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
     } catch {
       return false;
