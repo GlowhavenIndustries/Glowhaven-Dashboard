@@ -94,6 +94,9 @@ export async function validateRemoteUrl(input) {
   if (!['https:', 'http:'].includes(url.protocol)) {
     throw new Error('Integration endpoint must use HTTP or HTTPS');
   }
+  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
+    throw new Error('Production integration endpoints must use HTTPS');
+  }
 
   const hostname = url.hostname.toLowerCase();
   if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
