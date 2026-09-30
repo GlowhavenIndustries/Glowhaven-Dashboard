@@ -4,8 +4,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { URL, fileURLToPath } from 'node:url';
 import { appendAudit, loadSecrets, loadState, saveSecrets, saveState, readAudit, readLastAuditHash, verifyAuditChain, DATA_DIR } from './server/storage.js';
-import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, requestJson, securityHeaders, validateRemoteUrl } from './server/security.js';
-import { clearSessionCookie, csrfToken, login, logout, requireCsrf, requirePermission, sanitizeUser, sessionUser, setupOwner } from './server/auth.js';
+import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, hashPassword, hashToken, randomToken, requestJson, securityHeaders, validateRemoteUrl } from './server/security.js';
+import { clearSessionCookie, csrfToken, login, logout, requireCsrf, requirePermission, revokeUserSessions, sanitizeUser, sessionUser, setupOwner } from './server/auth.js';
 import { finishOidc, isOidcConfigured, startOidc } from './server/oidc.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +20,8 @@ state.users = Array.isArray(state.users) ? state.users : [];
 state.sessions = Object.assign(Object.create(null), state.sessions && typeof state.sessions === 'object' ? state.sessions : {});
 state.integrations = Object.assign(Object.create(null), state.integrations && typeof state.integrations === 'object' ? state.integrations : {});
 state.organization = state.organization && typeof state.organization === 'object' ? state.organization : { name: '', timezone: 'UTC' };
+state.apiKeys = Array.isArray(state.apiKeys) ? state.apiKeys : [];
+state.securityPolicy = state.securityPolicy && typeof state.securityPolicy === 'object' ? state.securityPolicy : { enforceSso: false, ssoDomains: [], minPasswordLength: 12 };
 await saveState(state);
 
 function send(res, status, data, headers = {}) {
@@ -215,13 +217,195 @@ async function api(req, res, url) {
   if (url.pathname.startsWith('/api/integrations/') && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); return send(res, 200, await upsertIntegration(actor, url.pathname.split('/')[3], await readBody(req))); }
   if (url.pathname.startsWith('/api/integrations/') && req.method === 'DELETE') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const kind = url.pathname.split('/')[3]; delete state.integrations[kind]; delete secrets[kind]; await persist(); await audit(actor, 'integration.deleted', { kind }); return send(res, 200, { ok: true }); }
   if (url.pathname === '/api/automations/run' && req.method === 'POST') { const actor = requirePermission(state, req, 'operate'); requireCsrf(state, req); return send(res, 200, await runAutomation(actor, await readBody(req))); }
-  if (url.pathname === '/api/audit' && req.method === 'GET') { requirePermission(state, req, 'audit'); const verification = await verifyAuditChain(auditHash); if (!verification.valid) throw fail('Audit log integrity verification failed', 503); return send(res, 200, await readAudit(url.searchParams.get('limit') || 200)); }
+  if (url.pathname === '/api/audit' && req.method === 'GET') {
+    requirePermission(state, req, 'audit');
+    const verification = await verifyAuditChain(auditHash);
+    if (!verification.valid) throw fail('Audit log integrity verification failed', 503);
+    let records = await readAudit(url.searchParams.get('limit') || 200);
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+    const actionFilter = (url.searchParams.get('action') || '').trim().toLowerCase();
+    const actorFilter = (url.searchParams.get('actor') || '').trim().toLowerCase();
+    if (q) {
+      records = records.filter((entry) => {
+        const text = ((entry.actorEmail || '') + ' ' + (entry.action || '') + ' ' + JSON.stringify(entry.details || {})).toLowerCase();
+        return text.includes(q);
+      });
+    }
+    if (actionFilter) {
+      records = records.filter((entry) => String(entry.action || '').toLowerCase().includes(actionFilter));
+    }
+    if (actorFilter) {
+      records = records.filter((entry) => String(entry.actorEmail || '').toLowerCase().includes(actorFilter));
+    }
+    return send(res, 200, records);
+  }
+  if (url.pathname === '/api/audit/export' && req.method === 'GET') {
+    requirePermission(state, req, 'audit');
+    const verification = await verifyAuditChain(auditHash);
+    if (!verification.valid) throw fail('Audit log integrity verification failed', 503);
+    let records = await readAudit(url.searchParams.get('limit') || 500);
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+    if (q) {
+      records = records.filter((entry) => {
+        const text = ((entry.actorEmail || '') + ' ' + (entry.action || '') + ' ' + JSON.stringify(entry.details || {})).toLowerCase();
+        return text.includes(q);
+      });
+    }
+    const format = (url.searchParams.get('format') || 'csv').toLowerCase();
+    if (format === 'csv') {
+      const escapeCsv = (val) => '"' + String(val ?? '').replace(/"/g, '""') + '"';
+      const header = ['id', 'timestamp', 'actorEmail', 'action', 'details', 'hash'].map(escapeCsv).join(',');
+      const rows = records.map((r) => [
+        r.id,
+        r.timestamp,
+        r.actorEmail,
+        r.action,
+        JSON.stringify(r.details || {}),
+        r.hash,
+      ].map(escapeCsv).join(','));
+      const csv = [header, ...rows].join('\n');
+      res.writeHead(200, {
+        ...securityHeaders(),
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="glowhaven-audit-log.csv"',
+        'Cache-Control': 'no-store',
+      });
+      return res.end(csv);
+    }
+    return send(res, 200, records);
+  }
   if (url.pathname === '/api/audit/verify' && req.method === 'POST') { const actor = requirePermission(state, req, 'audit'); requireCsrf(state, req); const verification = await verifyAuditChain(auditHash); await audit(actor, 'audit.verified', { valid: verification.valid, count: verification.count }); return send(res, 200, verification); }
+  if (url.pathname === '/api/security/policy' && req.method === 'GET') {
+    requirePermission(state, req, 'manage');
+    return send(res, 200, state.securityPolicy);
+  }
+  if (url.pathname === '/api/security/policy' && req.method === 'PUT') {
+    const actor = requirePermission(state, req, 'manage');
+    requireCsrf(state, req);
+    const input = await readBody(req);
+    const enforceSso = Boolean(input.enforceSso);
+    const ssoDomains = Array.isArray(input.ssoDomains)
+      ? input.ssoDomains.map((d) => String(d).trim().toLowerCase()).filter(Boolean)
+      : String(input.ssoDomains || '').split(',').map((d) => d.trim().toLowerCase()).filter(Boolean);
+    const minPasswordLength = Math.max(12, Math.min(Number(input.minPasswordLength) || 12, 128));
+    state.securityPolicy = { enforceSso, ssoDomains, minPasswordLength };
+    await persist();
+    await audit(actor, 'security.policy_updated', { enforceSso, ssoDomains, minPasswordLength });
+    return send(res, 200, state.securityPolicy);
+  }
   if (url.pathname === '/api/incidents/action' && req.method === 'POST') { const actor = requirePermission(state, req, 'operate'); requireCsrf(state, req); const body = await readBody(req); const incidentId = String(body.id || '').trim(); const action = String(body.action || 'acknowledge').trim(); if (!incidentId) throw fail('Incident ID is required'); await audit(actor, 'incident.action', { incidentId, action }); return send(res, 200, { ok: true, incidentId, action, timestamp: new Date().toISOString() }); }
   if (url.pathname === '/api/config' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, { organization: state.organization, integrations: Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin')), role: user.role }); }
   if (url.pathname === '/api/config' && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const input = await readBody(req); if (typeof input.organization?.name === 'string') state.organization.name = input.organization.name.trim().slice(0, 120); if (typeof input.organization?.timezone === 'string') state.organization.timezone = input.organization.timezone.trim().slice(0, 80); await persist(); await audit(actor, 'organization.updated', { name: state.organization.name }); return send(res, 200, { organization: state.organization }); }
   if (url.pathname === '/api/users' && req.method === 'GET') { requirePermission(state, req, 'users'); return send(res, 200, state.users.map(sanitizeUser)); }
-  if (url.pathname === '/api/users' && req.method === 'POST') { const actor = requirePermission(state, req, 'users'); requireCsrf(state, req); const input = await readBody(req); const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || ''); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw fail('Valid email is required'); if (state.users.some((u) => u.email === email)) throw fail('A user with that email already exists', 409); if (password.length < 12) throw fail('Password must be at least 12 characters'); const user = { id: crypto.randomUUID(), email, role: ['admin', 'operator', 'viewer'].includes(input.role) ? input.role : 'viewer', password: (await import('./server/security.js')).hashPassword(password), createdAt: new Date().toISOString(), status: 'active', auth: 'password' }; state.users.push(user); await persist(); await audit(actor, 'user.created', { userId: user.id, role: user.role }); return send(res, 201, sanitizeUser(user)); }
+  if (url.pathname === '/api/users' && req.method === 'POST') { const actor = requirePermission(state, req, 'users'); requireCsrf(state, req); const input = await readBody(req); const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || ''); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw fail('Valid email is required'); if (state.users.some((u) => u.email === email)) throw fail('A user with that email already exists', 409); if (password.length < 12) throw fail('Password must be at least 12 characters'); const user = { id: crypto.randomUUID(), email, role: ['admin', 'operator', 'viewer'].includes(input.role) ? input.role : 'viewer', password: hashPassword(password), createdAt: new Date().toISOString(), status: 'active', auth: 'password' }; state.users.push(user); await persist(); await audit(actor, 'user.created', { userId: user.id, role: user.role }); return send(res, 201, sanitizeUser(user)); }
+  if (url.pathname.startsWith('/api/users/') && req.method === 'PUT') {
+    const actor = requirePermission(state, req, 'users');
+    requireCsrf(state, req);
+    const targetId = url.pathname.slice('/api/users/'.length);
+    const targetUser = state.users.find((u) => u.id === targetId);
+    if (!targetUser) throw fail('User not found', 404);
+    const input = await readBody(req);
+    const updates = {};
+    if (input.role && ['admin', 'operator', 'viewer'].includes(input.role)) {
+      if (targetUser.role === 'owner' && input.role !== 'owner') {
+        const activeOwners = state.users.filter((u) => u.role === 'owner' && u.status === 'active');
+        if (activeOwners.length <= 1) throw fail('Cannot demote primary owner', 400);
+      }
+      targetUser.role = input.role;
+      updates.role = input.role;
+    }
+    if (input.status && ['active', 'disabled'].includes(input.status)) {
+      if (targetUser.role === 'owner' && input.status === 'disabled') {
+        const activeOwners = state.users.filter((u) => u.role === 'owner' && u.status === 'active');
+        if (activeOwners.length <= 1) throw fail('Cannot disable primary owner', 400);
+      }
+      targetUser.status = input.status;
+      updates.status = input.status;
+      if (input.status === 'disabled') revokeUserSessions(state, targetUser.id);
+    }
+    if (typeof input.password === 'string' && input.password) {
+      if (input.password.length < 12) throw fail('Password must be at least 12 characters', 400);
+      targetUser.password = hashPassword(input.password);
+      updates.passwordChanged = true;
+      revokeUserSessions(state, targetUser.id);
+    }
+    await persist();
+    await audit(actor, 'user.updated', { userId: targetUser.id, ...updates });
+    return send(res, 200, sanitizeUser(targetUser));
+  }
+  if (url.pathname.startsWith('/api/users/') && req.method === 'DELETE') {
+    const actor = requirePermission(state, req, 'users');
+    requireCsrf(state, req);
+    const targetId = url.pathname.slice('/api/users/'.length);
+    if (actor.id === targetId) throw fail('Cannot delete your own account', 400);
+    const index = state.users.findIndex((u) => u.id === targetId);
+    if (index < 0) throw fail('User not found', 404);
+    const targetUser = state.users[index];
+    if (targetUser.role === 'owner') {
+      const activeOwners = state.users.filter((u) => u.role === 'owner' && u.status === 'active');
+      if (activeOwners.length <= 1) throw fail('Cannot delete primary owner', 400);
+    }
+    state.users.splice(index, 1);
+    revokeUserSessions(state, targetId);
+    await persist();
+    await audit(actor, 'user.deleted', { userId: targetId, email: targetUser.email });
+    return send(res, 200, { ok: true });
+  }
+  if (url.pathname === '/api/apikeys' && req.method === 'GET') {
+    requirePermission(state, req, 'manage');
+    return send(res, 200, state.apiKeys.map((k) => ({
+      id: k.id,
+      name: k.name,
+      role: k.role,
+      prefix: k.prefix,
+      createdAt: k.createdAt,
+      lastUsedAt: k.lastUsedAt || null,
+      createdBy: k.createdBy,
+    })));
+  }
+  if (url.pathname === '/api/apikeys' && req.method === 'POST') {
+    const actor = requirePermission(state, req, 'manage');
+    requireCsrf(state, req);
+    const input = await readBody(req);
+    const name = String(input.name || '').trim().slice(0, 80);
+    if (!name) throw fail('API Key name is required', 400);
+    const role = ['admin', 'operator', 'viewer'].includes(input.role) ? input.role : 'viewer';
+    const rawToken = 'gh_ak_' + randomToken(32);
+    const keyHash = hashToken(rawToken);
+    const prefix = rawToken.slice(0, 12) + '...';
+    const keyRecord = {
+      id: crypto.randomUUID(),
+      name,
+      role,
+      keyHash,
+      prefix,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+      createdBy: actor.email,
+    };
+    state.apiKeys.push(keyRecord);
+    await persist();
+    await audit(actor, 'apikey.created', { apiKeyId: keyRecord.id, name, role });
+    return send(res, 201, {
+      id: keyRecord.id,
+      name,
+      role,
+      token: rawToken,
+      prefix,
+      createdAt: keyRecord.createdAt,
+    });
+  }
+  if (url.pathname.startsWith('/api/apikeys/') && req.method === 'DELETE') {
+    const actor = requirePermission(state, req, 'manage');
+    requireCsrf(state, req);
+    const targetId = url.pathname.slice('/api/apikeys/'.length);
+    const index = state.apiKeys.findIndex((k) => k.id === targetId);
+    if (index < 0) throw fail('API Key not found', 404);
+    const deleted = state.apiKeys.splice(index, 1)[0];
+    await persist();
+    await audit(actor, 'apikey.deleted', { apiKeyId: targetId, name: deleted.name });
+    return send(res, 200, { ok: true });
+  }
   throw fail('Not found', 404);
 }
 

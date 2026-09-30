@@ -465,7 +465,18 @@ button, input, select, textarea { font: inherit; }
 .settings-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; }
 .inline-action { display: flex; align-items: flex-end; }
 .admin-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 7px; max-height: 220px; overflow: auto; }
-.admin-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, 0.025); font-size: 11px; }
+.admin-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, 0.025); font-size: 11px; }
+.inline-actions { display: flex; gap: 8px; align-items: center; }
+.audit-search { margin-top: 6px; width: 100%; }
+.file-pill { display: inline-flex; align-items: center; justify-content: center; position: relative; cursor: pointer; }
+.checkbox-label { display: flex !important; flex-direction: row; align-items: center; gap: 10px; font-size: 12px; cursor: pointer; }
+.checkbox-label input { width: auto !important; margin: 0; }
+.key-banner { padding: 12px 14px; border: 1px solid var(--gold); background: rgba(229, 193, 88, 0.1); border-radius: 10px; color: var(--gold); font-size: 12px; word-break: break-all; }
+.mini-select { padding: 4px 8px; border-radius: 6px; background: var(--surface2); color: var(--text); border: 1px solid var(--line); font-size: 11px; }
+.status-badge { display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.status-badge.active { background: rgba(16, 185, 129, 0.15); color: var(--good); border: 1px solid rgba(16, 185, 129, 0.3); }
+.status-badge.disabled { background: rgba(245, 158, 11, 0.15); color: var(--warn); border: 1px solid rgba(245, 158, 11, 0.3); }
+.user-actions { display: flex; align-items: center; gap: 6px; }
 .admin-only[hidden] { display: none !important; }
 
 /* Command Palette Styling */

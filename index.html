@@ -40,7 +40,8 @@
     <button class="nav-item active" data-view="Overview">Overview</button>
     <button class="nav-item" data-view="Automations">Automations</button>
     <button class="nav-item" data-view="Workflow">Workflow</button>
-    <button class="nav-item" data-view="Devices">Devices</button>
+    <button class="nav-item" data-view="DevOps">DevOps</button>
+    <button class="nav-item" data-view="Security">Security &amp; Compliance</button>
     <button class="nav-item" data-view="Analytics">Analytics</button>
   </nav>
   <div class="sidebar-bottom">
@@ -65,9 +66,22 @@
 </section>
 
 <section class="control-panel">
-  <label><span>Workspace</span><select id="dashboardSelect"><option value="operations">Operations</option><option value="team">Team</option></select></label>
+  <label><span>Workspace</span><select id="dashboardSelect">
+    <option value="operations">Operations Center</option>
+    <option value="team">Team Collaboration</option>
+    <option value="devops">DevOps &amp; Infrastructure</option>
+    <option value="security">Security &amp; Compliance</option>
+  </select></label>
   <div class="control-status"><span>Access</span><b id="statusRole">viewer</b></div><div class="control-status"><span>Workspace controls</span><b id="statusEdit">View only</b></div>
-  <div class="control-actions"><select id="widgetType" aria-label="Select module to add"><option value="kpi">Business KPIs</option><option value="incidents">Incident Center</option><option value="automations">Automation Queue</option><option value="activity">Team Activity</option><option value="githubProjects">Release Pipelines</option><option value="serverStatus">Service Health</option><option value="weather">Local Conditions</option><option value="calendar">Calendar</option></select><button class="pill" id="addWidget" type="button">Add module</button></div>
+  <div class="control-actions">
+    <select id="widgetType" aria-label="Select module to add"><option value="kpi">Business KPIs</option><option value="incidents">Incident Center</option><option value="automations">Automation Queue</option><option value="activity">Team Activity</option><option value="githubProjects">Release Pipelines</option><option value="serverStatus">Service Health</option><option value="weather">Local Conditions</option><option value="calendar">Calendar</option></select>
+    <button class="pill" id="addWidget" type="button">Add module</button>
+    <button class="pill" id="exportLayoutBtn" type="button" title="Export Workspace Layout JSON">Export Layout</button>
+    <label class="pill file-pill" title="Import Workspace Layout JSON">
+      Import Layout
+      <input type="file" id="importLayoutFile" accept=".json" hidden>
+    </label>
+  </div>
 </section>
 
 <section class="quick-grid">
@@ -89,8 +103,10 @@
   <div class="settings-section"><span class="eyebrow">Engineering</span><div class="settings-grid"><label class="wide"><span>Service health URLs</span><textarea id="settingsServices" rows="4"></textarea></label><label class="wide"><span>GitHub repositories</span><textarea id="settingsRepos" rows="4"></textarea></label><label class="wide"><span>GitHub token</span><input id="settingsGithubToken" type="password" autocomplete="new-password"></label></div></div>
   <div class="settings-section"><span class="eyebrow">Business systems</span><div class="settings-grid"><label><span>KPI endpoint</span><input id="settingsKpi" type="url"></label><label><span>Incident endpoint</span><input id="settingsIncidents" type="url"></label><label><span>Automation endpoint</span><input id="settingsAutomations" type="url"></label><label><span>Activity endpoint</span><input id="settingsActivity" type="url"></label></div></div>
   <div class="settings-section"><span class="eyebrow">Calendar</span><div class="settings-grid"><label><span>Provider</span><select id="settingsCalendarProvider"><option value="none">None</option><option value="github">GitHub</option><option value="google">Google Calendar</option><option value="outlook">Outlook</option></select></label><label><span>GitHub organization</span><input id="settingsCalendarGithubOrg"></label><label><span>Google calendar ID</span><input id="settingsCalendarId"></label><label><span>Calendar endpoint</span><input id="settingsCalendarEndpoint" type="url"></label><label class="wide"><span>Google or Outlook credential</span><input id="settingsCalendarSecret" type="password" autocomplete="new-password"></label></div></div>
+  <div class="settings-section admin-only"><span class="eyebrow">Enterprise Security Policy</span><div class="settings-grid"><label><span>Enforce SSO domains</span><input id="settingsSsoDomains" placeholder="example.com, corp.internal"></label><label class="checkbox-label"><input type="checkbox" id="settingsEnforceSso"><span>Block password sign-in for SSO domains</span></label></div></div>
+  <div class="settings-section admin-only"><span class="eyebrow">API Keys &amp; Service Accounts</span><div class="settings-grid"><label><span>Key Name</span><input id="newKeyName" placeholder="e.g. Jenkins CI Bot"></label><label><span>Role</span><select id="newKeyRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label><div class="inline-action"><button class="pill" id="keyCreateBtn" type="button">Create API Key</button></div></div><div id="newKeyBanner" class="key-banner" hidden></div><ul class="admin-list" id="keyList"></ul></div>
   <div class="settings-section admin-only"><span class="eyebrow">People</span><div class="settings-grid"><label><span>Email</span><input id="newUserEmail" type="email"></label><label><span>Temporary password</span><input id="newUserPassword" type="password" autocomplete="new-password"></label><label><span>Role</span><select id="newUserRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label><div class="inline-action"><button class="pill" id="userCreate" type="button">Create user</button></div></div><ul class="admin-list" id="userList"></ul></div>
-  <div class="settings-section admin-only"><div class="section-header"><div><span class="eyebrow">Audit trail</span></div><button class="pill gold" id="auditVerifyBtn" type="button">Verify Hash Chain</button></div><ul class="admin-list" id="auditList"></ul></div>
+  <div class="settings-section admin-only"><div class="section-header"><div><span class="eyebrow">Audit trail &amp; Compliance</span></div><div class="inline-actions"><button class="pill gold" id="auditVerifyBtn" type="button">Verify Hash Chain</button><button class="pill primary" id="auditExportCsvBtn" type="button">Export CSV</button></div></div><label class="search audit-search"><input id="auditSearchInput" placeholder="Filter audit trail logs..."></label><ul class="admin-list" id="auditList"></ul></div>
   <div class="settings-actions"><button class="pill" id="settingsCancelSecondary" type="button">Close</button><button class="pill primary" id="settingsSave" type="button">Save settings</button></div>
 </form>
 </dialog>

@@ -5,18 +5,30 @@ const $ = (id) => document.getElementById(id);
 const state = { user: null, csrf: '', organization: { name: 'Company Workspace', timezone: 'UTC' }, integrations: [], theme: 'dark', visual: 'neon', consoleMode: false, dashboard: 'operations', role: 'viewer', view: 'Overview' };
 
 const layouts = {
-  operations: { label: 'Operations', widgets: [
+  operations: { label: 'Operations Center', widgets: [
     { id: 'kpi', type: 'kpi', title: 'Business KPIs', x: 1, y: 1, w: 4, h: 2 },
     { id: 'incidents', type: 'incidents', title: 'Incident Center', x: 5, y: 1, w: 4, h: 2 },
     { id: 'automations', type: 'automations', title: 'Automation Queue', x: 9, y: 1, w: 4, h: 2 },
     { id: 'github', type: 'githubProjects', title: 'Release Pipelines', x: 1, y: 3, w: 6, h: 3 },
     { id: 'services', type: 'serverStatus', title: 'Service Health', x: 7, y: 3, w: 6, h: 3 },
   ] },
-  team: { label: 'Team', widgets: [
+  team: { label: 'Team Collaboration', widgets: [
     { id: 'activity', type: 'activity', title: 'Team Activity', x: 1, y: 1, w: 6, h: 3 },
     { id: 'calendar', type: 'calendar', title: 'Calendar', x: 7, y: 1, w: 6, h: 3 },
     { id: 'weather', type: 'weather', title: 'Local Conditions', x: 1, y: 4, w: 4, h: 2 },
     { id: 'team-kpi', type: 'kpi', title: 'Team KPIs', x: 5, y: 4, w: 8, h: 2 },
+  ] },
+  devops: { label: 'DevOps & Infrastructure', widgets: [
+    { id: 'services', type: 'serverStatus', title: 'Service Health', x: 1, y: 1, w: 6, h: 3 },
+    { id: 'github', type: 'githubProjects', title: 'Release Pipelines', x: 7, y: 1, w: 6, h: 3 },
+    { id: 'automations', type: 'automations', title: 'Automation Queue', x: 1, y: 4, w: 6, h: 2 },
+    { id: 'kpi', type: 'kpi', title: 'Infrastructure KPIs', x: 7, y: 4, w: 6, h: 2 },
+  ] },
+  security: { label: 'Security & Compliance', widgets: [
+    { id: 'incidents', type: 'incidents', title: 'Incident Center', x: 1, y: 1, w: 6, h: 3 },
+    { id: 'automations', type: 'automations', title: 'Automated Remediation', x: 7, y: 1, w: 6, h: 3 },
+    { id: 'activity', type: 'activity', title: 'Audit Activity', x: 1, y: 4, w: 6, h: 3 },
+    { id: 'services', type: 'serverStatus', title: 'Service Security', x: 7, y: 4, w: 6, h: 3 },
   ] },
 };
 
@@ -72,7 +84,48 @@ class Dashboard {
 }
 
 const dashboard = new Dashboard();
-function viewFilter(view, type) { const map = { Overview: null, Automations: ['automations'], Workflow: ['activity', 'githubProjects', 'calendar'], Devices: ['serverStatus', 'weather'], Analytics: ['kpi', 'activity'], Settings: [] }; return !map[view] || map[view].includes(type); }
+function viewFilter(view, type) {
+  const map = {
+    Overview: null,
+    Automations: ['automations'],
+    Workflow: ['activity', 'githubProjects', 'calendar'],
+    DevOps: ['serverStatus', 'githubProjects', 'automations'],
+    Security: ['incidents', 'automations', 'activity', 'serverStatus'],
+    Analytics: ['kpi', 'activity'],
+    Settings: [],
+  };
+  return !map[view] || map[view].includes(type);
+}
+
+function exportLayout() {
+  const layout = dashboard.currentLayout();
+  const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(layout, null, 2));
+  const dlAnchorElem = document.createElement('a');
+  dlAnchorElem.setAttribute('href', dataStr);
+  dlAnchorElem.setAttribute('download', `glowhaven-layout-${state.dashboard}.json`);
+  dlAnchorElem.click();
+  notify('Workspace layout exported');
+}
+
+function importLayout(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed || !Array.isArray(parsed.widgets)) throw new Error('Invalid layout file format');
+      dashboard.storage.layouts ||= {};
+      dashboard.storage.layouts[state.dashboard] = parsed.widgets;
+      dashboard.saveLocal();
+      dashboard.render();
+      notify('Workspace layout imported successfully');
+    } catch (err) {
+      notify(err.message || 'Failed to import layout');
+    }
+  };
+  reader.readAsText(file);
+}
 
 async function api(path, options = {}) {
   const method = options.method || 'GET'; const headers = new Headers(options.headers || {});
@@ -103,6 +156,22 @@ function loadSettings() {
 }
 
 async function saveIntegration(kind, payload) { return api('/api/integrations/' + kind, { method: 'PUT', body: JSON.stringify(payload) }); }
+async function loadSecurityPolicy() {
+  if (!['owner', 'admin'].includes(state.role)) return;
+  try {
+    const policy = await api('/api/security/policy');
+    setValue('settingsSsoDomains', (policy.ssoDomains || []).join(', '));
+    if ($('settingsEnforceSso')) $('settingsEnforceSso').checked = Boolean(policy.enforceSso);
+  } catch {}
+}
+
+async function saveSecurityPolicy() {
+  if (!['owner', 'admin'].includes(state.role)) return;
+  const ssoDomains = ($('settingsSsoDomains')?.value || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const enforceSso = Boolean($('settingsEnforceSso')?.checked);
+  await api('/api/security/policy', { method: 'PUT', body: JSON.stringify({ enforceSso, ssoDomains }) });
+}
+
 async function saveSettings() {
   const repos = $('settingsRepos').value.split('\n').map((x) => x.trim()).filter(Boolean).map((x) => { const parts = x.split('/'); return { owner: parts.shift(), repo: parts.join('/') }; }).filter((x) => x.owner && x.repo);
   await api('/api/config', { method: 'PUT', body: JSON.stringify({ organization: { name: $('settingsOrg').value.trim(), timezone: $('settingsTimezone').value.trim() } }) });
@@ -111,12 +180,157 @@ async function saveSettings() {
   const githubToken = $('settingsGithubToken').value; await saveIntegration('github', { settings: { repositories: repos }, authType: 'bearer', ...(githubToken ? { secret: githubToken } : {}) });
   await saveIntegration('kpi', { endpoint: $('settingsKpi').value.trim() }); await saveIntegration('incidents', { endpoint: $('settingsIncidents').value.trim() }); await saveIntegration('automations', { endpoint: $('settingsAutomations').value.trim() }); await saveIntegration('activity', { endpoint: $('settingsActivity').value.trim(), settings: { provider: $('settingsActivity').value.trim() ? 'http' : 'none' } });
   const calendarSecret = $('settingsCalendarSecret').value; await saveIntegration('calendar', { endpoint: $('settingsCalendarEndpoint').value.trim(), settings: { provider: $('settingsCalendarProvider').value, org: $('settingsCalendarGithubOrg').value.trim(), calendarId: $('settingsCalendarId').value.trim() }, ...(calendarSecret ? { secret: calendarSecret, authType: 'bearer' } : {}) });
+  await saveSecurityPolicy();
   const config = await api('/api/config'); state.organization = config.organization; state.integrations = config.integrations; $('companyName').textContent = state.organization.name || 'Company Workspace'; $('settingsGithubToken').value = ''; $('settingsCalendarSecret').value = ''; $('settingsDialog').close(); await dashboard.render(); await refreshWorkspace(); notify('Company settings saved');
 }
 
-async function loadUsers() { if (!['owner', 'admin'].includes(state.role)) { document.querySelectorAll('.admin-only').forEach((x) => { x.hidden = true; }); return; } document.querySelectorAll('.admin-only').forEach((x) => { x.hidden = false; }); const users = await api('/api/users'); const list = $('userList'); list.replaceChildren(...users.map((user) => { const row = document.createElement('li'); const a = document.createElement('span'); const b = document.createElement('span'); a.textContent = user.email; b.textContent = user.role; row.append(a, b); return row; })); }
+async function loadUsers() {
+  if (!['owner', 'admin'].includes(state.role)) {
+    document.querySelectorAll('.admin-only').forEach((x) => { x.hidden = true; });
+    return;
+  }
+  document.querySelectorAll('.admin-only').forEach((x) => { x.hidden = false; });
+  const users = await api('/api/users');
+  const list = $('userList');
+  if (!list) return;
+  list.replaceChildren(...users.map((user) => {
+    const row = document.createElement('li');
+    const userMeta = document.createElement('span');
+    userMeta.textContent = `${user.email} (${user.role})`;
+
+    const actions = document.createElement('div');
+    actions.className = 'user-actions';
+
+    const statusBadge = document.createElement('span');
+    statusBadge.className = `status-badge ${user.status || 'active'}`;
+    statusBadge.textContent = user.status || 'active';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'mini-button';
+    toggleBtn.type = 'button';
+    toggleBtn.textContent = user.status === 'disabled' ? 'Enable' : 'Disable';
+    toggleBtn.addEventListener('click', async () => {
+      try {
+        const nextStatus = user.status === 'disabled' ? 'active' : 'disabled';
+        await api(`/api/users/${user.id}`, { method: 'PUT', body: JSON.stringify({ status: nextStatus }) });
+        notify(`User ${user.email} ${nextStatus}`);
+        await loadUsers();
+      } catch (e) {
+        notify(e.message);
+      }
+    });
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'mini-button';
+    resetBtn.type = 'button';
+    resetBtn.textContent = 'Reset Pass';
+    resetBtn.addEventListener('click', async () => {
+      const newPassword = prompt(`Enter new password for ${user.email} (min 12 chars):`);
+      if (!newPassword) return;
+      try {
+        await api(`/api/users/${user.id}`, { method: 'PUT', body: JSON.stringify({ password: newPassword }) });
+        notify(`Password updated for ${user.email}`);
+      } catch (e) {
+        notify(e.message);
+      }
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'mini-button';
+    deleteBtn.type = 'button';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm(`Delete user ${user.email}?`)) return;
+      try {
+        await api(`/api/users/${user.id}`, { method: 'DELETE' });
+        notify(`User ${user.email} deleted`);
+        await loadUsers();
+      } catch (e) {
+        notify(e.message);
+      }
+    });
+
+    actions.append(statusBadge, toggleBtn, resetBtn, deleteBtn);
+    row.append(userMeta, actions);
+    return row;
+  }));
+}
+
 async function createUser() { await api('/api/users', { method: 'POST', body: JSON.stringify({ email: $('newUserEmail').value.trim(), password: $('newUserPassword').value, role: $('newUserRole').value }) }); $('newUserEmail').value = ''; $('newUserPassword').value = ''; await loadUsers(); notify('User account created'); }
-async function loadAudit() { if (!['owner', 'admin'].includes(state.role)) return; const rows = await api('/api/audit?limit=100'); const list = $('auditList'); list.replaceChildren(...rows.map((entry) => { const row = document.createElement('li'); const a = document.createElement('span'); const b = document.createElement('span'); a.textContent = entry.action; b.textContent = new Date(entry.timestamp).toLocaleString(); row.append(a, b); return row; })); }
+
+async function loadApiKeys() {
+  if (!['owner', 'admin'].includes(state.role)) return;
+  const list = $('keyList');
+  if (!list) return;
+  try {
+    const keys = await api('/api/apikeys');
+    list.replaceChildren(...keys.map((key) => {
+      const row = document.createElement('li');
+      const meta = document.createElement('span');
+      meta.textContent = `${key.name} (${key.role}) · ${key.prefix}`;
+      const actions = document.createElement('div');
+      actions.className = 'user-actions';
+      const revokeBtn = document.createElement('button');
+      revokeBtn.className = 'mini-button';
+      revokeBtn.type = 'button';
+      revokeBtn.textContent = 'Revoke';
+      revokeBtn.addEventListener('click', async () => {
+        try {
+          await api(`/api/apikeys/${key.id}`, { method: 'DELETE' });
+          notify(`API key ${key.name} revoked`);
+          await loadApiKeys();
+        } catch (e) {
+          notify(e.message);
+        }
+      });
+      actions.append(revokeBtn);
+      row.append(meta, actions);
+      return row;
+    }));
+  } catch {}
+}
+
+async function createApiKey() {
+  const name = $('newKeyName')?.value.trim();
+  const role = $('newKeyRole')?.value || 'viewer';
+  if (!name) return notify('API key name is required');
+  try {
+    const res = await api('/api/apikeys', { method: 'POST', body: JSON.stringify({ name, role }) });
+    if ($('newKeyName')) $('newKeyName').value = '';
+    const banner = $('newKeyBanner');
+    if (banner) {
+      banner.hidden = false;
+      banner.textContent = `New API Key created for ${res.name}: ${res.token} (Copy now, it won't be shown again!)`;
+    }
+    await loadApiKeys();
+    notify('API Key created');
+  } catch (e) {
+    notify(e.message);
+  }
+}
+
+async function loadAudit(query = '') {
+  if (!['owner', 'admin'].includes(state.role)) return;
+  const q = encodeURIComponent(query.trim());
+  const rows = await api('/api/audit?limit=100' + (q ? '&q=' + q : ''));
+  const list = $('auditList');
+  if (!list) return;
+  list.replaceChildren(...rows.map((entry) => {
+    const row = document.createElement('li');
+    const a = document.createElement('span');
+    const b = document.createElement('span');
+    a.textContent = `${entry.actorEmail || 'system'}: ${entry.action}`;
+    b.textContent = new Date(entry.timestamp).toLocaleString();
+    row.append(a, b);
+    return row;
+  }));
+}
+
+function exportAuditCsv() {
+  const q = encodeURIComponent(($('auditSearchInput')?.value || '').trim());
+  window.open('/api/audit/export?format=csv' + (q ? '&q=' + q : ''), '_blank');
+  notify('Exporting audit log CSV...');
+}
 
 async function verifyAudit() {
   try {
@@ -137,9 +351,11 @@ const commandList = [
   { name: 'View: Overview', action: () => switchView('Overview') },
   { name: 'View: Automations', action: () => switchView('Automations') },
   { name: 'View: Workflow', action: () => switchView('Workflow') },
-  { name: 'View: Devices', action: () => switchView('Devices') },
+  { name: 'View: DevOps', action: () => switchView('DevOps') },
+  { name: 'View: Security & Compliance', action: () => switchView('Security') },
   { name: 'View: Analytics', action: () => switchView('Analytics') },
   { name: 'Action: Refresh Workspace', action: () => refreshWorkspace().then(() => notify('Workspace refreshed')) },
+  { name: 'Action: Export Workspace Layout', action: () => exportLayout() },
   { name: 'Action: Verify Audit Chain', action: () => verifyAudit() },
   { name: 'Action: Open Company Settings', action: () => $('settingsButton')?.click() },
   { name: 'Toggle: Color Theme', action: () => $('themeToggle')?.click() },
@@ -177,8 +393,13 @@ function bindEvents() {
   $('loginForm').addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: $('loginEmail').value, password: $('loginPassword').value }) }); state.csrf = data.csrf; globalThis.__glowhavenCsrf = state.csrf; await authenticated(); } catch (error) { notify(error.message); } });
   $('setupForm').addEventListener('submit', async (e) => { e.preventDefault(); try { if ($('setupPassword').value !== $('setupPasswordConfirm').value) throw new Error('Passwords do not match'); const data = await api('/api/auth/setup', { method: 'POST', body: JSON.stringify({ email: $('setupEmail').value, password: $('setupPassword').value }) }); state.csrf = data.csrf; globalThis.__glowhavenCsrf = state.csrf; await authenticated(); } catch (error) { notify(error.message); } });
   $('ssoButton').addEventListener('click', () => { window.location.href = '/api/auth/oidc/start'; }); $('logoutButton').addEventListener('click', async () => { try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } finally { location.reload(); } });
-  $('settingsButton').addEventListener('click', async () => { loadSettings(); await Promise.allSettled([loadUsers(), loadAudit()]); $('settingsDialog').showModal(); }); $('settingsCancel').addEventListener('click', () => $('settingsDialog').close()); $('settingsSave').addEventListener('click', () => saveSettings().catch((e) => notify(e.message))); $('userCreate').addEventListener('click', () => createUser().catch((e) => notify(e.message)));
+  $('settingsButton').addEventListener('click', async () => { loadSettings(); await Promise.allSettled([loadUsers(), loadAudit(), loadSecurityPolicy(), loadApiKeys()]); $('settingsDialog').showModal(); }); $('settingsCancel').addEventListener('click', () => $('settingsDialog').close()); $('settingsSave').addEventListener('click', () => saveSettings().catch((e) => notify(e.message))); $('userCreate').addEventListener('click', () => createUser().catch((e) => notify(e.message)));
   $('auditVerifyBtn')?.addEventListener('click', () => verifyAudit());
+  $('auditExportCsvBtn')?.addEventListener('click', () => exportAuditCsv());
+  $('auditSearchInput')?.addEventListener('input', (e) => loadAudit(e.target.value));
+  $('keyCreateBtn')?.addEventListener('click', () => createApiKey());
+  $('exportLayoutBtn')?.addEventListener('click', () => exportLayout());
+  $('importLayoutFile')?.addEventListener('change', (e) => importLayout(e));
   $('cmdTriggerBtn')?.addEventListener('click', () => {
     renderCmdResults('');
     $('cmdSearchInput').value = '';
