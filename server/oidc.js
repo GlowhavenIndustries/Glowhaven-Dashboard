@@ -75,7 +75,7 @@ export async function finishOidc(state, code, appState, expectedState = '') {
       const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
       const issuer = issuerUrl();
       const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-      if (claims.iss !== issuer || !audience.includes(process.env.OIDC_CLIENT_ID) || claims.nonce !== record.nonce || !claims.exp || Number(claims.exp) <= Math.floor(Date.now() / 1000)) throw new Error('OIDC ID token claims failed validation');
+      if (claims.iss !== issuer || !audience.includes(process.env.OIDC_CLIENT_ID) || claims.nonce !== record.nonce || claims.email_verified !== true || !claims.exp || Number(claims.exp) <= Math.floor(Date.now() / 1000)) throw new Error('OIDC ID token claims failed validation');
     } catch (error) { throw new Error('OIDC ID token claims failed validation'); }
   }
   const infoResponse = await fetch(metadata.userinfo_endpoint, { headers: { Authorization: 'Bearer ' + tokens.access_token } });
@@ -84,6 +84,7 @@ export async function finishOidc(state, code, appState, expectedState = '') {
   if (!claims?.sub || !claims?.email) throw new Error('OIDC identity did not contain an email');
   const email = String(claims.email).trim().toLowerCase();
   let user = appState.users.find((item) => item.email === email);
+  if (user?.auth === 'oidc' && user.externalSubject && user.externalSubject !== String(claims.sub)) throw new Error('OIDC subject does not match the existing account');
   if (!user) {
     user = { id: randomToken(16), email, role: appState.users.length ? roleForClaims(claims) : 'owner', createdAt: new Date().toISOString(), status: 'active', auth: 'oidc', externalSubject: String(claims.sub) };
     appState.users.push(user);
