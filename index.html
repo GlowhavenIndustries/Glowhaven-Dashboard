@@ -18,7 +18,7 @@
     <button class="nav-item" data-view="Workflow">Workflow</button>
     <button class="nav-item" data-view="Devices">Devices</button>
     <button class="nav-item" data-view="Analytics">Analytics</button>
-    <button class="nav-item" data-view="Settings">Settings</button>
+    <button class="nav-item" id="settingsButton" data-view="Settings">Settings</button>
   </nav>
   <div class="sidebar-card"><span class="eyebrow">Workspace</span><strong id="statusOrg">Your Company</strong><span>Operational command fabric</span><div class="online-dot"><i></i> Runtime ready</div></div>
 </aside>
@@ -29,7 +29,7 @@
 </header>
 <section class="hero-card">
  <div class="hero-copy"><span class="eyebrow">Executive pulse</span><h2>See what needs attention. Act from the same screen.</h2><p class="muted">A company-agnostic command layer for engineering, operations, support, and leadership.</p><div class="hero-actions"><button class="pill primary" id="refreshAll">Refresh everything</button><span class="status-pill positive">Local runtime</span></div></div>
- <div class="hero-metrics"><div><span>Availability</span><strong id="metricAvailability">—</strong></div><div><span>Latency</span><strong id="metricLatency">—</strong></div><div><span>Alerts</span><strong id="metricAlerts">—</strong></div><div><span>Mode</span><strong id="metricMode">GLOW</strong></div></div>
+ <div class="hero-metrics"><div><span>Availability</span><strong id="metricAvailability">-</strong></div><div><span>Latency</span><strong id="metricLatency">-</strong></div><div><span>Alerts</span><strong id="metricAlerts">-</strong></div><div><span>Mode</span><strong id="metricMode">GLOW</strong></div></div>
 </section>
 <section class="control-panel">
  <label><span>Workspace</span><select id="dashboardSelect"><option value="operations">Operations</option><option value="team">Team</option></select></label>
@@ -44,10 +44,34 @@
  <article><span class="eyebrow">Execution</span><h3>Automations are first-class</h3><p class="muted">Queue repeatable actions locally now, with adapter hooks ready for real integrations later.</p></article>
  <article><span class="eyebrow">Portable</span><h3>Built for any company</h3><p class="muted">Company name, data sources, workspaces, and modules live in importable configuration.</p></article>
 </section>
-<section class="widget-area"><div class="section-header"><div><span class="eyebrow">Workspace</span><h2>Operational modules</h2></div><span class="muted">Drag to organize • Search to filter • Add to extend</span></div><div class="widget-grid" id="widgetGrid"></div></section>
+<section class="widget-area"><div class="section-header"><div><span class="eyebrow">Workspace</span><h2>Operational modules</h2></div><span class="muted">Drag to organize | Search to filter | Add to extend</span></div><div class="widget-grid" id="widgetGrid"></div></section>
+
+<dialog class="settings-dialog" id="settingsDialog">
+  <form method="dialog" class="settings-card">
+    <div class="section-header"><div><span class="eyebrow">Company setup</span><h2>Connect your systems</h2></div><button class="icon-button" id="settingsCancel" type="button" aria-label="Close settings">×</button></div>
+    <p class="muted">Configure public APIs, internal endpoints, repositories, and your company name. Credentials stored here remain in this browser.</p>
+    <div class="settings-grid">
+      <label><span>Company name</span><input id="settingsOrg" placeholder="Your Company"></label>
+      <label><span>Weather city</span><input id="settingsCity" placeholder="City"></label>
+      <label><span>Latitude</span><input id="settingsLat" type="number" step="any" placeholder="32.7767"></label>
+      <label><span>Longitude</span><input id="settingsLon" type="number" step="any" placeholder="-96.7970"></label>
+      <label class="wide"><span>Service health URLs, one per line</span><textarea id="settingsServices" rows="4" placeholder="https://api.example.com/health"></textarea></label>
+      <label class="wide"><span>GitHub repositories, owner/repo per line</span><textarea id="settingsRepos" rows="4" placeholder="company/api"></textarea></label>
+      <label class="wide"><span>GitHub token</span><input id="settingsGithubToken" type="password" autocomplete="off" placeholder="Optional"></label>
+      <label class="wide"><span>KPI endpoint</span><input id="settingsKpi" type="url" placeholder="https://company.example/api/kpis"></label>
+      <label class="wide"><span>Incident endpoint</span><input id="settingsIncidents" type="url" placeholder="https://company.example/api/incidents"></label>
+      <label class="wide"><span>Automation endpoint</span><input id="settingsAutomations" type="url" placeholder="https://company.example/api/automations/run"></label>
+      <label class="wide"><span>Activity endpoint</span><input id="settingsActivity" type="url" placeholder="https://company.example/api/activity"></label>
+    </div>
+    <div class="settings-actions"><button class="pill" id="settingsCancelSecondary" type="button">Cancel</button><button class="pill primary" id="settingsSave" type="button">Save company settings</button></div>
+  </form>
+</dialog>
 <div class="toast" id="systemToast" role="status" aria-live="polite"></div>
 </main>
 </div>
 <script type="module" src="app.js"></script>
+<script>
+document.getElementById('settingsCancelSecondary')?.addEventListener('click', () => document.getElementById('settingsDialog').close());
+</script>
 </body>
 </html>
