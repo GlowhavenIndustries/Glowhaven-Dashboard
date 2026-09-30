@@ -2,7 +2,6 @@
 
 > **A secure, self-hosted operations command center for modern companies.**
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Interactive_Sandbox-6366f1?style=for-the-badge&logo=rocket&logoColor=white)](https://demo.glowhaven.example.com)
 [![CI](https://github.com/GlowhavenIndustries/Glowhaven-Dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/GlowhavenIndustries/Glowhaven-Dashboard/actions/workflows/ci.yml)
 ![Node 20+](https://img.shields.io/badge/node-20%2B-111827?logo=node.js&logoColor=white)
 ![Security](https://img.shields.io/badge/security-hardened-0f766e)
