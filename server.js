@@ -43,7 +43,12 @@ async function audit(user, action, details = {}) {
   entry.hash = auditHash(entry, entry.previousHash); state.lastAuditHash = entry.hash; await saveState(state); await appendAudit(entry);
 }
 function safeIntegration(item) { return { id: item.id, kind: item.kind, name: item.name, endpoint: item.endpoint || '', authType: item.authType || 'none', configured: Boolean(item.endpoint || item.settings), updatedAt: item.updatedAt || null, settings: item.settings || {} }; }
-function getIntegration(kind) { const integration = state.integrations[kind]; if (!integration) throw fail(kind + ' integration is not configured', 404); return integration; }
+function getIntegration(kind, allowUnconfigured = false) {
+  const integration = state.integrations[kind];
+  if (!integration && allowUnconfigured) return { id: kind, kind, name: kind, settings: {} };
+  if (!integration) throw fail(kind + ' integration is not configured', 404);
+  return integration;
+}
 function getSecret(kind) { const record = secrets[kind]; return record ? decryptSecret(record) : ''; }
 function authHeaders(integration) { const secret = getSecret(integration.kind); if (!secret) return {}; if (integration.authType === 'apiKey') return { 'X-API-Key': secret }; if (integration.authType === 'bearer') return { Authorization: 'Bearer ' + secret }; return {}; }
 
@@ -88,7 +93,7 @@ async function openMeteo(settings = {}) {
 }
 
 async function integrationData(kind) {
-  const integration = getIntegration(kind);
+  const integration = getIntegration(kind, true);
 
   if (kind === 'weather') {
     const data = await openMeteo(integration.settings);
