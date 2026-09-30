@@ -431,3 +431,82 @@ export async function fetchTelemetrySnapshot(config = {}) {
     },
   };
 }
+
+
+function normalizeItems(value, keys = []) {
+  if (Array.isArray(value)) return value;
+  for (const key of keys) if (Array.isArray(value?.[key])) return value[key];
+  return [];
+}
+
+async function fetchConfiguredJson(config = {}, fallback = {}) {
+  if (!config.endpoint) return fallback;
+  return fetchJson(config.endpoint, {
+    headers: config.token ? { Authorization: `Bearer ${config.token}` } : undefined,
+    retries: config.retries ?? DEFAULT_RETRIES,
+  });
+}
+
+export async function fetchBusinessKpis(config = {}) {
+  const fallback = {
+    metrics: Array.isArray(config.metrics) ? config.metrics : [],
+    source: config.endpoint ? 'integration' : 'not configured',
+  };
+  const data = await fetchConfiguredJson(config, fallback);
+  const metrics = normalizeItems(data, ['metrics', 'kpis']).map((metric) => ({
+    label: String(metric.label || metric.name || 'Metric'),
+    value: String(metric.value ?? '—'),
+    change: metric.change == null ? '' : String(metric.change),
+    trend: metric.trend || 'neutral',
+  }));
+  return { metrics, source: config.endpoint ? 'integration' : 'configuration' };
+}
+
+export async function fetchIncidents(config = {}) {
+  const data = await fetchConfiguredJson(config, { incidents: config.incidents || [] });
+  const incidents = normalizeItems(data, ['incidents', 'items']).map((incident) => ({
+    id: String(incident.id || crypto.randomUUID()),
+    title: String(incident.title || incident.name || 'Incident'),
+    status: String(incident.status || 'open'),
+    severity: String(incident.severity || 'medium'),
+    updatedAt: incident.updatedAt || incident.updated_at || null,
+  }));
+  return { incidents };
+}
+
+export async function fetchAutomations(config = {}) {
+  const data = await fetchConfiguredJson(config, { automations: config.automations || [] });
+  const automations = normalizeItems(data, ['automations', 'items']).map((job) => ({
+    id: String(job.id || crypto.randomUUID()),
+    name: String(job.name || job.title || 'Automation'),
+    status: String(job.status || 'queued'),
+    detail: String(job.detail || job.description || ''),
+  }));
+  return { automations };
+}
+
+export async function fetchActivity(config = {}) {
+  const data = await fetchConfiguredJson(config, { activity: config.activity || [] });
+  const items = normalizeItems(data, ['activity', 'items', 'events']).map((entry) => ({
+    title: String(entry.title || entry.name || entry.message || 'Activity'),
+    detail: String(entry.detail || entry.actor || entry.description || ''),
+    time: entry.time || entry.created_at || entry.updated_at || null,
+  }));
+  return { items };
+}
+
+export async function executeAutomation(config = {}, automation = {}) {
+  if (!config.endpoint) {
+    throw new Error('Automation endpoint is not configured');
+  }
+
+  return fetchJson(config.endpoint, {
+    method: config.method || 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(config.token ? { Authorization: `Bearer ${config.token}` } : {}),
+    },
+    body: JSON.stringify(automation),
+    retries: 0,
+  });
+}
