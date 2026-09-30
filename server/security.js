@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 import dns from 'node:dns/promises';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import net from 'node:net';
 
 const textEncoder = new TextEncoder();
@@ -22,6 +24,22 @@ export function verifyPassword(password, record) {
   const derived = crypto.scryptSync(password, Buffer.from(record.salt, 'hex'), 64);
   const expected = Buffer.from(record.hash, 'hex');
   return expected.length === derived.length && crypto.timingSafeEqual(expected, derived);
+}
+
+export async function ensureMasterKey(dataDir) {
+  if (process.env.GLOWHAVEN_MASTER_KEY) return;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('GLOWHAVEN_MASTER_KEY must be configured in production');
+  }
+  const file = path.join(dataDir, 'master.key');
+  try {
+    process.env.GLOWHAVEN_MASTER_KEY = (await fs.readFile(file, 'utf8')).trim();
+    return;
+  } catch {}
+  const key = crypto.randomBytes(32).toString('hex');
+  await fs.mkdir(dataDir, { recursive: true });
+  await fs.writeFile(file, key + '\n', { mode: 0o600 });
+  process.env.GLOWHAVEN_MASTER_KEY = key;
 }
 
 function masterKey() {
