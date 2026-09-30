@@ -68,6 +68,7 @@ export async function finishOidc(state, code, appState, expectedState = '') {
   if (!tokenResponse.ok) throw new Error('OIDC token exchange failed');
   const tokens = await tokenResponse.json();
   if (!tokens.access_token) throw new Error('OIDC provider did not return an access token');
+  if (!tokens.id_token) throw new Error('OIDC provider did not return an ID token');
   if (tokens.id_token) {
     const parts = String(tokens.id_token).split('.');
     if (parts.length !== 3) throw new Error('OIDC provider returned an invalid ID token');
