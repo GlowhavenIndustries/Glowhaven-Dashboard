@@ -3,6 +3,7 @@ import dns from 'node:dns/promises';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
+import { resolveExternalMasterKey } from './secretManager.js';
 
 export function randomToken(bytes = 32) {
   return crypto.randomBytes(bytes).toString('base64url');
@@ -28,8 +29,37 @@ export function verifyPassword(password, record) {
   }
 }
 
+export function checkIntegrationAccess(integration, user, req) {
+  if (!integration || !user || user.role === 'owner' || user.role === 'admin') return true;
+
+  if (integration.workspaceId) {
+    const userWorkspace = user.workspaceId || user.workspace || req?.headers?.['x-workspace-id'];
+    if (!userWorkspace || userWorkspace !== integration.workspaceId) {
+      const err = new Error('Access to integration secrets is restricted to workspace: ' + integration.workspaceId);
+      err.statusCode = 403;
+      throw err;
+    }
+  }
+
+  if (Array.isArray(integration.executionGroups) && integration.executionGroups.length > 0) {
+    const headerGroup = req?.headers?.['x-execution-group'];
+    const userGroups = Array.isArray(user.executionGroups) ? user.executionGroups : (Array.isArray(user.groups) ? user.groups : []);
+    const allUserGroups = headerGroup ? [...userGroups, headerGroup] : userGroups;
+    const hasMatch = integration.executionGroups.some((group) => allUserGroups.includes(group));
+    if (!hasMatch) {
+      const err = new Error('Access to integration secrets is restricted to execution groups: ' + integration.executionGroups.join(', '));
+      err.statusCode = 403;
+      throw err;
+    }
+  }
+
+  return true;
+}
+
 export async function ensureMasterKey(dataDir) {
-  if (process.env.GLOWHAVEN_MASTER_KEY) {
+  const externalKey = await resolveExternalMasterKey();
+  if (externalKey) {
+    process.env.GLOWHAVEN_MASTER_KEY = externalKey;
     masterKey();
     return;
   }

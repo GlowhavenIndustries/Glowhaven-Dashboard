@@ -53,35 +53,103 @@ async function audit(user, action, details = {}) {
   state.lastAuditHash = entry.hash;
   await saveState(state);
 }
-function safeIntegration(item, includeConfig = false) { const base = { id: item.id, kind: item.kind, name: item.name, authType: item.authType || 'none', configured: Boolean(item.endpoint || item.settings), updatedAt: item.updatedAt || null }; return includeConfig ? { ...base, endpoint: item.endpoint || '', settings: item.settings || {} } : base; }
-function getIntegration(kind, allowUnconfigured = false) {
+
+export function checkIntegrationAccess(integration, user, req) {
+  if (!integration || !user || user.role === 'owner' || user.role === 'admin') return true;
+
+  if (integration.workspaceId) {
+    const userWorkspace = user.workspaceId || user.workspace || req?.headers?.['x-workspace-id'];
+    if (!userWorkspace || userWorkspace !== integration.workspaceId) {
+      throw fail('Access to integration secrets is restricted to workspace: ' + integration.workspaceId, 403);
+    }
+  }
+
+  if (Array.isArray(integration.executionGroups) && integration.executionGroups.length > 0) {
+    const headerGroup = req?.headers?.['x-execution-group'];
+    const userGroups = Array.isArray(user.executionGroups) ? user.executionGroups : (Array.isArray(user.groups) ? user.groups : []);
+    const allUserGroups = headerGroup ? [...userGroups, headerGroup] : userGroups;
+    const hasMatch = integration.executionGroups.some((group) => allUserGroups.includes(group));
+    if (!hasMatch) {
+      throw fail('Access to integration secrets is restricted to execution groups: ' + integration.executionGroups.join(', '), 403);
+    }
+  }
+
+  return true;
+}
+
+function safeIntegration(item, includeConfig = false) {
+  const base = {
+    id: item.id,
+    kind: item.kind,
+    name: item.name,
+    authType: item.authType || 'none',
+    configured: Boolean(item.endpoint || item.settings),
+    updatedAt: item.updatedAt || null,
+    workspaceId: item.workspaceId || '',
+    executionGroups: Array.isArray(item.executionGroups) ? item.executionGroups : [],
+  };
+  return includeConfig ? { ...base, endpoint: item.endpoint || '', settings: item.settings || {} } : base;
+}
+
+function getIntegration(kind, allowUnconfigured = false, user = null, req = null) {
   if (!/^[a-z][a-z0-9_-]{1,31}$/i.test(kind)) throw fail('Invalid integration type');
   const integration = state.integrations[kind];
-  if (!integration && allowUnconfigured) return { id: kind, kind, name: kind, settings: {} };
+  if (!integration && allowUnconfigured) return { id: kind, kind, name: kind, settings: {}, workspaceId: '', executionGroups: [] };
   if (!integration) throw fail(kind + ' integration is not configured', 404);
+  if (user) checkIntegrationAccess(integration, user, req);
   return integration;
 }
-function getSecret(kind) { const record = secrets[kind]; return record ? decryptSecret(record) : ''; }
-function authHeaders(integration) { const secret = getSecret(integration.kind); if (!secret) return {}; if (integration.authType === 'apiKey') return { 'X-API-Key': secret }; if (integration.authType === 'bearer') return { Authorization: 'Bearer ' + secret }; return {}; }
+
+function getSecret(kind, user = null, req = null) {
+  const integration = state.integrations[kind];
+  if (integration && user) checkIntegrationAccess(integration, user, req);
+  const record = secrets[kind];
+  return record ? decryptSecret(record) : '';
+}
+
+function authHeaders(integration, user = null, req = null) {
+  const secret = getSecret(integration.kind, user, req);
+  if (!secret) return {};
+  if (integration.authType === 'apiKey') return { 'X-API-Key': secret };
+  if (integration.authType === 'bearer') return { Authorization: 'Bearer ' + secret };
+  return {};
+}
 
 async function remoteJson(inputUrl, options = {}) {
   return requestJson(inputUrl, options);
 }
 
-async function upsertIntegration(user, kind, input) {
+async function upsertIntegration(user, kind, input, req = null) {
   if (!/^[a-z][a-z0-9_-]{1,31}$/i.test(kind)) throw fail('Invalid integration type');
   const old = state.integrations[kind] || { id: kind, kind };
+  if (old.workspaceId || (Array.isArray(old.executionGroups) && old.executionGroups.length > 0)) {
+    checkIntegrationAccess(old, user, req);
+  }
   const endpoint = Object.prototype.hasOwnProperty.call(input, 'endpoint')
     ? (input.endpoint ? await validateRemoteUrl(input.endpoint) : '')
     : (old.endpoint || '');
   const settings = input.settings && typeof input.settings === 'object' ? input.settings : (old.settings || {});
-  const item = { id: kind, kind, name: String(input.name || old.name || kind).trim().slice(0, 120), endpoint, authType: ['none', 'bearer', 'apiKey'].includes(input.authType) ? input.authType : (old.authType || 'none'), settings, updatedAt: new Date().toISOString() };
+  const workspaceId = typeof input.workspaceId === 'string' ? input.workspaceId.trim() : (old.workspaceId || '');
+  const executionGroups = Array.isArray(input.executionGroups) ? input.executionGroups.map((g) => String(g).trim()).filter(Boolean) : (old.executionGroups || []);
+  const item = {
+    id: kind,
+    kind,
+    name: String(input.name || old.name || kind).trim().slice(0, 120),
+    endpoint,
+    authType: ['none', 'bearer', 'apiKey'].includes(input.authType) ? input.authType : (old.authType || 'none'),
+    settings,
+    workspaceId,
+    executionGroups,
+    updatedAt: new Date().toISOString(),
+  };
   state.integrations[kind] = item;
   if (input.secret !== undefined && input.secret !== '') secrets[kind] = encryptSecret(input.secret);
   if (input.clearSecret) delete secrets[kind];
-  await persist(); await audit(user, 'integration.updated', { kind, endpointConfigured: Boolean(endpoint), secretChanged: input.secret !== undefined || Boolean(input.clearSecret) });
-  return safeIntegration(item);
+  await persist();
+  await audit(user, 'integration.updated', { kind, endpointConfigured: Boolean(endpoint), secretChanged: input.secret !== undefined || Boolean(input.clearSecret), workspaceId, executionGroups });
+  return safeIntegration(item, true);
 }
+
 async function openMeteo(settings = {}) {
   const location = settings.location || {};
   const lat = Number(location.lat);
@@ -99,8 +167,8 @@ async function openMeteo(settings = {}) {
   return remoteJson(url.toString());
 }
 
-async function integrationData(kind) {
-  const integration = getIntegration(kind, true);
+async function integrationData(kind, user = null, req = null) {
+  const integration = getIntegration(kind, true, user, req);
 
   if (kind === 'weather') {
     const data = await openMeteo(integration.settings);
@@ -126,17 +194,17 @@ async function integrationData(kind) {
 
   if (kind === 'calendar') {
     const settings = integration.settings || {};
-    if (settings.provider === 'google' && settings.calendarId && getSecret(kind)) {
+    if (settings.provider === 'google' && settings.calendarId && getSecret(kind, user, req)) {
       const url = new URL('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(settings.calendarId) + '/events');
       url.searchParams.set('timeMin', new Date().toISOString());
       url.searchParams.set('maxResults', '5');
       url.searchParams.set('singleEvents', 'true');
       url.searchParams.set('orderBy', 'startTime');
-      const data = await remoteJson(url.toString(), { headers: authHeaders(integration) });
+      const data = await remoteJson(url.toString(), { headers: authHeaders(integration, user, req) });
       return { events: (data.items || []).map((event) => ({ title: event.summary || 'Untitled', time: event.start?.dateTime || event.start?.date || '' })) };
     }
     if (settings.provider === 'outlook' && integration.endpoint) {
-      const data = await remoteJson(integration.endpoint, { headers: { ...authHeaders(integration) } });
+      const data = await remoteJson(integration.endpoint, { headers: { ...authHeaders(integration, user, req) } });
       return { events: (data.value || []).slice(0, 5).map((event) => ({ title: event.subject || 'Untitled', time: event.start?.dateTime || '' })) };
     }
     if (settings.provider === 'github' && settings.org) {
@@ -152,14 +220,14 @@ async function integrationData(kind) {
       const items = await remoteJson('https://api.github.com/orgs/' + encodeURIComponent(settings.org) + '/events?per_page=8', { headers: { 'X-GitHub-Api-Version': '2022-11-28' } });
       return { items: (Array.isArray(items) ? items : []).map((event) => ({ title: (event.type || 'Activity').replace(/Event$/, ''), detail: event.repo?.name || settings.org, time: event.created_at || null })) };
     }
-    if (integration.endpoint) return remoteJson(integration.endpoint, { headers: authHeaders(integration) });
+    if (integration.endpoint) return remoteJson(integration.endpoint, { headers: authHeaders(integration, user, req) });
     return { items: [] };
   }
 
   if (kind === 'github') {
     const repos = Array.isArray(integration.settings?.repositories) ? integration.settings.repositories : [];
     if (!repos.length) return { summary: 'No repositories configured', items: [], lastSync: new Date().toISOString() };
-    const headers = { ...authHeaders(integration), 'X-GitHub-Api-Version': '2022-11-28' };
+    const headers = { ...authHeaders(integration, user, req), 'X-GitHub-Api-Version': '2022-11-28' };
     const items = await Promise.all(repos.slice(0, 20).map(async (repo) => {
       const owner = String(repo.owner || '').trim();
       const name = String(repo.repo || '').trim();
@@ -182,7 +250,7 @@ async function integrationData(kind) {
       const name = typeof entry === 'object' ? entry?.name : '';
       const started = Date.now();
       try {
-        await remoteJson(target, { headers: typeof entry === 'object' ? { ...authHeaders(integration), ...(entry.headers || {}) } : authHeaders(integration) });
+        await remoteJson(target, { headers: typeof entry === 'object' ? { ...authHeaders(integration, user, req), ...(entry.headers || {}) } : authHeaders(integration, user, req) });
         return { name: name || new URL(target).hostname, ok: true, latency: Date.now() - started };
       } catch {
         return { name: name || target, ok: false, latency: Date.now() - started };
@@ -194,31 +262,58 @@ async function integrationData(kind) {
   }
 
   if (!integration.endpoint) return integration.settings?.items ? { items: integration.settings.items } : { items: [] };
-  return remoteJson(integration.endpoint, { headers: authHeaders(integration) });
+  return remoteJson(integration.endpoint, { headers: authHeaders(integration, user, req) });
 }
 
-async function runAutomation(user, payload) {
-  const integration = getIntegration('automations'); if (!integration.endpoint) throw fail('Automation execution endpoint is not configured', 409);
-  const result = await remoteJson(integration.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders(integration) }, body: JSON.stringify(payload || {}) });
-  await audit(user, 'automation.executed', { automationId: payload?.id || null }); return result;
+async function runAutomation(user, payload, req = null) {
+  const integration = getIntegration('automations', false, user, req);
+  if (!integration.endpoint) throw fail('Automation execution endpoint is not configured', 409);
+  const result = await remoteJson(integration.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders(integration, user, req) }, body: JSON.stringify(payload || {}) });
+  await audit(user, 'automation.executed', { automationId: payload?.id || null });
+  return result;
 }
 
 async function api(req, res, url) {
   if (url.pathname === '/api/health') return send(res, 200, { status: 'ok', service: 'glowhaven', time: new Date().toISOString() });
-  if (url.pathname === '/api/auth/session' && req.method === 'GET') { const user = sessionUser(state, req); return send(res, 200, { authenticated: Boolean(user), setupRequired: state.users.length === 0, oidcEnabled: isOidcConfigured(), user: sanitizeUser(user), csrf: user ? csrfToken(state, req) : '' }); }
+  if (url.pathname === '/api/auth/session' && req.method === 'GET') { const user = await sessionUser(state, req); return send(res, 200, { authenticated: Boolean(user), setupRequired: state.users.length === 0, oidcEnabled: isOidcConfigured(), user: sanitizeUser(user), csrf: user ? await csrfToken(state, req) : '' }); }
   if (url.pathname === '/api/auth/login' && req.method === 'POST') { const input = await readBody(req); try { const result = await login(state, req, input.email, input.password); await persist(); await audit(result.user, 'auth.login', { method: 'password' }); return send(res, 200, { user: sanitizeUser(result.user), csrf: result.csrf }, { 'Set-Cookie': cookie(result.token) }); } catch (e) { e.statusCode = 401; throw e; } }
   if (url.pathname === '/api/auth/setup' && req.method === 'POST') { const input = await readBody(req); const result = await setupOwner(state, req, input.email, input.password); await persist(); await audit(result.user, 'auth.setup', { method: 'password' }); return send(res, 200, { user: sanitizeUser(result.user), csrf: result.csrf }, { 'Set-Cookie': cookie(result.token) }); }
-  if (url.pathname === '/api/auth/logout' && req.method === 'POST') { const user = sessionUser(state, req); requireCsrf(state, req); await logout(state, req); await persist(); if (user) await audit(user, 'auth.logout'); return send(res, 200, { ok: true }, { 'Set-Cookie': clearSessionCookie(secureCookies) }); }
+  if (url.pathname === '/api/auth/logout' && req.method === 'POST') { const user = await sessionUser(state, req); await requireCsrf(state, req); await logout(state, req); await persist(); if (user) await audit(user, 'auth.logout'); return send(res, 200, { ok: true }, { 'Set-Cookie': clearSessionCookie(secureCookies) }); }
   if (url.pathname === '/api/auth/oidc/start' && req.method === 'GET') { if (!isOidcConfigured()) throw fail('SSO is not configured', 404); const flow = await startOidc(); res.writeHead(302, { ...securityHeaders(), Location: flow.url, 'Set-Cookie': oidcStateCookie(flow.state) }); return res.end(); }
   if (url.pathname === '/api/auth/oidc/callback' && req.method === 'GET') { const result = await finishOidc(url.searchParams.get('state') || '', url.searchParams.get('code') || '', state, readCookie(req, 'gh_oidc_state')); await persist(); await audit(result.user, 'auth.login', { method: 'oidc' }); res.writeHead(302, { ...securityHeaders(), Location: '/', 'Set-Cookie': [cookie(result.token), 'gh_oidc_state=; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=0' + (secureCookies ? '; Secure' : '')] }); return res.end(); }
-  const user = sessionUser(state, req); if (!user) throw fail('Authentication required', 401);
-  if (url.pathname === '/api/integrations' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin'))); }
-  if (url.pathname.startsWith('/api/integrations/') && url.pathname.endsWith('/data') && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, await integrationData(url.pathname.split('/')[3])); }
-  if (url.pathname.startsWith('/api/integrations/') && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); return send(res, 200, await upsertIntegration(actor, url.pathname.split('/')[3], await readBody(req))); }
-  if (url.pathname.startsWith('/api/integrations/') && req.method === 'DELETE') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const kind = url.pathname.split('/')[3]; delete state.integrations[kind]; delete secrets[kind]; await persist(); await audit(actor, 'integration.deleted', { kind }); return send(res, 200, { ok: true }); }
-  if (url.pathname === '/api/automations/run' && req.method === 'POST') { const actor = requirePermission(state, req, 'operate'); requireCsrf(state, req); return send(res, 200, await runAutomation(actor, await readBody(req))); }
+  const user = await sessionUser(state, req); if (!user) throw fail('Authentication required', 401);
+  if (url.pathname === '/api/integrations' && req.method === 'GET') {
+    await requirePermission(state, req, 'view');
+    return send(res, 200, Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin')));
+  }
+  if (url.pathname.startsWith('/api/integrations/') && url.pathname.endsWith('/data') && req.method === 'GET') {
+    await requirePermission(state, req, 'view');
+    return send(res, 200, await integrationData(url.pathname.split('/')[3], user, req));
+  }
+  if (url.pathname.startsWith('/api/integrations/') && req.method === 'PUT') {
+    const actor = await requirePermission(state, req, 'manage');
+    await requireCsrf(state, req);
+    return send(res, 200, await upsertIntegration(actor, url.pathname.split('/')[3], await readBody(req), req));
+  }
+  if (url.pathname.startsWith('/api/integrations/') && req.method === 'DELETE') {
+    const actor = await requirePermission(state, req, 'manage');
+    await requireCsrf(state, req);
+    const kind = url.pathname.split('/')[3];
+    const old = state.integrations[kind];
+    if (old) checkIntegrationAccess(old, actor, req);
+    delete state.integrations[kind];
+    delete secrets[kind];
+    await persist();
+    await audit(actor, 'integration.deleted', { kind });
+    return send(res, 200, { ok: true });
+  }
+  if (url.pathname === '/api/automations/run' && req.method === 'POST') {
+    const actor = await requirePermission(state, req, 'operate');
+    await requireCsrf(state, req);
+    return send(res, 200, await runAutomation(actor, await readBody(req), req));
+  }
   if (url.pathname === '/api/audit' && req.method === 'GET') {
-    requirePermission(state, req, 'audit');
+    await requirePermission(state, req, 'audit');
     const verification = await verifyAuditChain(auditHash);
     if (!verification.valid) throw fail('Audit log integrity verification failed', 503);
     let records = await readAudit(url.searchParams.get('limit') || 200);
@@ -240,7 +335,7 @@ async function api(req, res, url) {
     return send(res, 200, records);
   }
   if (url.pathname === '/api/audit/export' && req.method === 'GET') {
-    requirePermission(state, req, 'audit');
+    await requirePermission(state, req, 'audit');
     const verification = await verifyAuditChain(auditHash);
     if (!verification.valid) throw fail('Audit log integrity verification failed', 503);
     let records = await readAudit(url.searchParams.get('limit') || 500);
@@ -274,14 +369,14 @@ async function api(req, res, url) {
     }
     return send(res, 200, records);
   }
-  if (url.pathname === '/api/audit/verify' && req.method === 'POST') { const actor = requirePermission(state, req, 'audit'); requireCsrf(state, req); const verification = await verifyAuditChain(auditHash); await audit(actor, 'audit.verified', { valid: verification.valid, count: verification.count }); return send(res, 200, verification); }
+  if (url.pathname === '/api/audit/verify' && req.method === 'POST') { const actor = await requirePermission(state, req, 'audit'); await requireCsrf(state, req); const verification = await verifyAuditChain(auditHash); await audit(actor, 'audit.verified', { valid: verification.valid, count: verification.count }); return send(res, 200, verification); }
   if (url.pathname === '/api/security/policy' && req.method === 'GET') {
-    requirePermission(state, req, 'manage');
+    await requirePermission(state, req, 'manage');
     return send(res, 200, state.securityPolicy);
   }
   if (url.pathname === '/api/security/policy' && req.method === 'PUT') {
-    const actor = requirePermission(state, req, 'manage');
-    requireCsrf(state, req);
+    const actor = await requirePermission(state, req, 'manage');
+    await requireCsrf(state, req);
     const input = await readBody(req);
     const enforceSso = Boolean(input.enforceSso);
     const ssoDomains = Array.isArray(input.ssoDomains)
@@ -293,14 +388,14 @@ async function api(req, res, url) {
     await audit(actor, 'security.policy_updated', { enforceSso, ssoDomains, minPasswordLength });
     return send(res, 200, state.securityPolicy);
   }
-  if (url.pathname === '/api/incidents/action' && req.method === 'POST') { const actor = requirePermission(state, req, 'operate'); requireCsrf(state, req); const body = await readBody(req); const incidentId = String(body.id || '').trim(); const action = String(body.action || 'acknowledge').trim(); if (!incidentId) throw fail('Incident ID is required'); await audit(actor, 'incident.action', { incidentId, action }); return send(res, 200, { ok: true, incidentId, action, timestamp: new Date().toISOString() }); }
-  if (url.pathname === '/api/config' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, { organization: state.organization, integrations: Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin')), role: user.role }); }
-  if (url.pathname === '/api/config' && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const input = await readBody(req); if (typeof input.organization?.name === 'string') state.organization.name = input.organization.name.trim().slice(0, 120); if (typeof input.organization?.timezone === 'string') state.organization.timezone = input.organization.timezone.trim().slice(0, 80); await persist(); await audit(actor, 'organization.updated', { name: state.organization.name }); return send(res, 200, { organization: state.organization }); }
-  if (url.pathname === '/api/users' && req.method === 'GET') { requirePermission(state, req, 'users'); return send(res, 200, state.users.map(sanitizeUser)); }
-  if (url.pathname === '/api/users' && req.method === 'POST') { const actor = requirePermission(state, req, 'users'); requireCsrf(state, req); const input = await readBody(req); const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || ''); if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw fail('Valid email is required'); if (state.users.some((u) => u.email === email)) throw fail('A user with that email already exists', 409); if (password.length < 12) throw fail('Password must be at least 12 characters'); const user = { id: crypto.randomUUID(), email, role: ['admin', 'operator', 'viewer'].includes(input.role) ? input.role : 'viewer', password: hashPassword(password), createdAt: new Date().toISOString(), status: 'active', auth: 'password' }; state.users.push(user); await persist(); await audit(actor, 'user.created', { userId: user.id, role: user.role }); return send(res, 201, sanitizeUser(user)); }
+  if (url.pathname === '/api/incidents/action' && req.method === 'POST') { const actor = await requirePermission(state, req, 'operate'); await requireCsrf(state, req); const body = await readBody(req); const incidentId = String(body.id || '').trim(); const action = String(body.action || 'acknowledge').trim(); if (!incidentId) throw fail('Incident ID is required'); await audit(actor, 'incident.action', { incidentId, action }); return send(res, 200, { ok: true, incidentId, action, timestamp: new Date().toISOString() }); }
+  if (url.pathname === '/api/config' && req.method === 'GET') { await requirePermission(state, req, 'view'); return send(res, 200, { organization: state.organization, integrations: Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin')), role: user.role }); }
+  if (url.pathname === '/api/config' && req.method === 'PUT') { const actor = await requirePermission(state, req, 'manage'); await requireCsrf(state, req); const input = await readBody(req); if (typeof input.organization?.name === 'string') state.organization.name = input.organization.name.trim().slice(0, 120); if (typeof input.organization?.timezone === 'string') state.organization.timezone = input.organization.timezone.trim().slice(0, 80); await persist(); await audit(actor, 'organization.updated', { name: state.organization.name }); return send(res, 200, { organization: state.organization }); }
+  if (url.pathname === '/api/users' && req.method === 'GET') { await requirePermission(state, req, 'users'); return send(res, 200, state.users.map(sanitizeUser)); }
+  if (url.pathname === '/api/users' && req.method === 'POST') { const actor = await requirePermission(state, req, 'users'); await requireCsrf(state, req); const input = await readBody(req); const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || ''); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw fail('Valid email is required'); if (state.users.some((u) => u.email === email)) throw fail('A user with that email already exists', 409); if (password.length < 12) throw fail('Password must be at least 12 characters'); const user = { id: crypto.randomUUID(), email, role: ['admin', 'operator', 'viewer'].includes(input.role) ? input.role : 'viewer', password: hashPassword(password), createdAt: new Date().toISOString(), status: 'active', auth: 'password' }; state.users.push(user); await persist(); await audit(actor, 'user.created', { userId: user.id, role: user.role }); return send(res, 201, sanitizeUser(user)); }
   if (url.pathname.startsWith('/api/users/') && req.method === 'PUT') {
-    const actor = requirePermission(state, req, 'users');
-    requireCsrf(state, req);
+    const actor = await requirePermission(state, req, 'users');
+    await requireCsrf(state, req);
     const targetId = url.pathname.slice('/api/users/'.length);
     const targetUser = state.users.find((u) => u.id === targetId);
     if (!targetUser) throw fail('User not found', 404);
@@ -321,21 +416,21 @@ async function api(req, res, url) {
       }
       targetUser.status = input.status;
       updates.status = input.status;
-      if (input.status === 'disabled') revokeUserSessions(state, targetUser.id);
+      if (input.status === 'disabled') await revokeUserSessions(state, targetUser.id);
     }
     if (typeof input.password === 'string' && input.password) {
       if (input.password.length < 12) throw fail('Password must be at least 12 characters', 400);
       targetUser.password = hashPassword(input.password);
       updates.passwordChanged = true;
-      revokeUserSessions(state, targetUser.id);
+      await revokeUserSessions(state, targetUser.id);
     }
     await persist();
     await audit(actor, 'user.updated', { userId: targetUser.id, ...updates });
     return send(res, 200, sanitizeUser(targetUser));
   }
   if (url.pathname.startsWith('/api/users/') && req.method === 'DELETE') {
-    const actor = requirePermission(state, req, 'users');
-    requireCsrf(state, req);
+    const actor = await requirePermission(state, req, 'users');
+    await requireCsrf(state, req);
     const targetId = url.pathname.slice('/api/users/'.length);
     if (actor.id === targetId) throw fail('Cannot delete your own account', 400);
     const index = state.users.findIndex((u) => u.id === targetId);
@@ -346,13 +441,13 @@ async function api(req, res, url) {
       if (activeOwners.length <= 1) throw fail('Cannot delete primary owner', 400);
     }
     state.users.splice(index, 1);
-    revokeUserSessions(state, targetId);
+    await revokeUserSessions(state, targetId);
     await persist();
     await audit(actor, 'user.deleted', { userId: targetId, email: targetUser.email });
     return send(res, 200, { ok: true });
   }
   if (url.pathname === '/api/apikeys' && req.method === 'GET') {
-    requirePermission(state, req, 'manage');
+    await requirePermission(state, req, 'manage');
     return send(res, 200, state.apiKeys.map((k) => ({
       id: k.id,
       name: k.name,
@@ -364,8 +459,8 @@ async function api(req, res, url) {
     })));
   }
   if (url.pathname === '/api/apikeys' && req.method === 'POST') {
-    const actor = requirePermission(state, req, 'manage');
-    requireCsrf(state, req);
+    const actor = await requirePermission(state, req, 'manage');
+    await requireCsrf(state, req);
     const input = await readBody(req);
     const name = String(input.name || '').trim().slice(0, 80);
     if (!name) throw fail('API Key name is required', 400);
@@ -396,8 +491,8 @@ async function api(req, res, url) {
     });
   }
   if (url.pathname.startsWith('/api/apikeys/') && req.method === 'DELETE') {
-    const actor = requirePermission(state, req, 'manage');
-    requireCsrf(state, req);
+    const actor = await requirePermission(state, req, 'manage');
+    await requireCsrf(state, req);
     const targetId = url.pathname.slice('/api/apikeys/'.length);
     const index = state.apiKeys.findIndex((k) => k.id === targetId);
     if (index < 0) throw fail('API Key not found', 404);

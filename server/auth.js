@@ -1,4 +1,5 @@
 import { hashToken, randomToken, hashPassword, verifyPassword } from './security.js';
+import { getSessionStore } from './sessionStore.js';
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const AUTH_RATE_WINDOW_MS = 15 * 60 * 1000;
@@ -16,7 +17,7 @@ function validEmail(email) {
 }
 
 function clientKey(req) {
-  return req.socket.remoteAddress || 'unknown';
+  return req.socket?.remoteAddress || 'unknown';
 }
 
 function checkRateLimit(req) {
@@ -42,11 +43,9 @@ function checkRateLimit(req) {
   }
 }
 
-function cleanupSessions(state) {
-  const now = Date.now();
-  for (const [hash, session] of Object.entries(state.sessions || {})) {
-    if (!session?.expiresAt || session.expiresAt <= now) delete state.sessions[hash];
-  }
+export async function cleanupSessions(state) {
+  const store = getSessionStore(state);
+  await store.cleanup();
 }
 
 export function sessionCookie(token, secure = false) {
@@ -58,24 +57,20 @@ export function clearSessionCookie(secure = false) {
 }
 
 export function parseSessionCookie(req) {
-  const header = req.headers.cookie || '';
+  const header = req.headers?.cookie || '';
   const value = header.split(';').map((part) => part.trim()).find((part) => part.startsWith('gh_session='));
   return value ? decodeURIComponent(value.slice('gh_session='.length)) : '';
 }
 
-export function revokeUserSessions(state, userId) {
-  if (!state.sessions) return;
-  for (const [hash, session] of Object.entries(state.sessions)) {
-    if (session?.userId === userId) {
-      delete state.sessions[hash];
-    }
-  }
+export async function revokeUserSessions(state, userId) {
+  const store = getSessionStore(state);
+  await store.revokeUserSessions(userId);
 }
 
 export function parseApiKey(req) {
-  const headerKey = req.headers['x-api-key'];
+  const headerKey = req.headers?.['x-api-key'];
   if (headerKey) return String(headerKey).trim();
-  const authHeader = req.headers.authorization || '';
+  const authHeader = req.headers?.authorization || '';
   if (authHeader.startsWith('Bearer gh_ak_')) {
     return authHeader.slice('Bearer '.length).trim();
   }
@@ -100,10 +95,23 @@ export function sessionUser(state, req) {
     }
   }
 
-  cleanupSessions(state);
   const token = parseSessionCookie(req);
   if (!token) return null;
-  const session = state.sessions[hashToken(token)];
+
+  const store = getSessionStore(state);
+  const tokenHash = hashToken(token);
+  const res = store.get(tokenHash);
+
+  if (res && typeof res.then === 'function') {
+    return res.then((session) => {
+      if (!session || session.expiresAt <= Date.now()) return null;
+      const user = state.users.find((u) => u.id === session.userId) || null;
+      if (!user || user.status === 'disabled') return null;
+      return user;
+    });
+  }
+
+  const session = res;
   if (!session || session.expiresAt <= Date.now()) return null;
   const user = state.users.find((u) => u.id === session.userId) || null;
   if (!user || user.status === 'disabled') return null;
@@ -112,8 +120,14 @@ export function sessionUser(state, req) {
 
 export function csrfToken(state, req) {
   const token = parseSessionCookie(req);
-  const session = token ? state.sessions[hashToken(token)] : null;
-  return session?.csrf || '';
+  if (!token) return '';
+  const store = getSessionStore(state);
+  const tokenHash = hashToken(token);
+  const res = store.get(tokenHash);
+  if (res && typeof res.then === 'function') {
+    return res.then((session) => session?.csrf || '');
+  }
+  return res?.csrf || '';
 }
 
 export async function login(state, req, email, password) {
@@ -140,21 +154,26 @@ export async function login(state, req, email, password) {
     throw new Error('Account is disabled');
   }
 
-  cleanupSessions(state);
+  const store = getSessionStore(state);
+  await store.cleanup();
   const token = randomToken(48);
-  state.sessions[hashToken(token)] = {
+  const session = {
     userId: user.id,
     csrf: randomToken(24),
     createdAt: Date.now(),
     expiresAt: Date.now() + SESSION_TTL_MS,
   };
+  await store.set(hashToken(token), session);
 
-  return { user, token, csrf: state.sessions[hashToken(token)].csrf };
+  return { user, token, csrf: session.csrf };
 }
 
 export async function logout(state, req) {
   const token = parseSessionCookie(req);
-  if (token) delete state.sessions[hashToken(token)];
+  if (token) {
+    const store = getSessionStore(state);
+    await store.delete(hashToken(token));
+  }
 }
 
 export async function setupOwner(state, req, email, password) {
@@ -178,14 +197,16 @@ export async function setupOwner(state, req, email, password) {
 
   state.users.push(user);
   const token = randomToken(48);
-  state.sessions[hashToken(token)] = {
+  const store = getSessionStore(state);
+  const session = {
     userId: user.id,
     csrf: randomToken(24),
     createdAt: Date.now(),
     expiresAt: Date.now() + SESSION_TTL_MS,
   };
+  await store.set(hashToken(token), session);
 
-  return { user, token, csrf: state.sessions[hashToken(token)].csrf };
+  return { user, token, csrf: session.csrf };
 }
 
 export function sanitizeUser(user) {
@@ -211,8 +232,8 @@ export function userCan(user, permission) {
   return matrix[permission]?.includes(user.role) || false;
 }
 
-export function requirePermission(state, req, permission) {
-  const user = sessionUser(state, req);
+export async function requirePermission(state, req, permission) {
+  const user = await sessionUser(state, req);
   if (!userCan(user, permission)) {
     const error = new Error('Forbidden');
     error.statusCode = user ? 403 : 401;
@@ -221,11 +242,11 @@ export function requirePermission(state, req, permission) {
   return user;
 }
 
-export function requireCsrf(state, req) {
-  const user = sessionUser(state, req);
+export async function requireCsrf(state, req) {
+  const user = await sessionUser(state, req);
   if (user?.isApiKey) return;
-  const token = req.headers['x-glowhaven-csrf'];
-  const expected = csrfToken(state, req);
+  const token = req.headers?.['x-glowhaven-csrf'];
+  const expected = await csrfToken(state, req);
   if (!token || !expected || token !== expected) {
     const error = new Error('CSRF validation failed');
     error.statusCode = 403;
