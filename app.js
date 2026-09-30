@@ -85,6 +85,11 @@ async function api(path, options = {}) {
 function notify(message) { const toast = $('systemToast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(notify.timer); notify.timer = setTimeout(() => toast.classList.remove('show'), 2800); }
 function integration(kind) { return state.integrations.find((item) => item.kind === kind) || { kind, settings: {} }; }
 function setValue(id, value) { const element = $(id); if (element) element.value = value ?? ''; }
+function updateToggleStates() {
+  $('themeToggle')?.setAttribute('aria-pressed', state.theme === 'light' ? 'true' : 'false');
+  $('neonToggle')?.setAttribute('aria-pressed', state.visual === 'neon' ? 'true' : 'false');
+  $('consoleToggle')?.setAttribute('aria-pressed', state.consoleMode ? 'true' : 'false');
+}
 
 async function refreshWorkspace() {
   try { const telemetry = await fetchTelemetrySnapshot(); $('metricAvailability').textContent = telemetry.metrics.availability; $('metricLatency').textContent = telemetry.metrics.latency; $('metricAlerts').textContent = telemetry.metrics.alerts; } catch {}
@@ -119,9 +124,15 @@ function bindEvents() {
   $('setupForm').addEventListener('submit', async (e) => { e.preventDefault(); try { if ($('setupPassword').value !== $('setupPasswordConfirm').value) throw new Error('Passwords do not match'); const data = await api('/api/auth/setup', { method: 'POST', body: JSON.stringify({ email: $('setupEmail').value, password: $('setupPassword').value }) }); state.csrf = data.csrf; globalThis.__glowhavenCsrf = state.csrf; await authenticated(); } catch (error) { notify(error.message); } });
   $('ssoButton').addEventListener('click', () => { window.location.href = '/api/auth/oidc/start'; }); $('logoutButton').addEventListener('click', async () => { try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } finally { location.reload(); } });
   $('settingsButton').addEventListener('click', async () => { loadSettings(); await Promise.allSettled([loadUsers(), loadAudit()]); $('settingsDialog').showModal(); }); $('settingsCancel').addEventListener('click', () => $('settingsDialog').close()); $('settingsSave').addEventListener('click', () => saveSettings().catch((e) => notify(e.message))); $('userCreate').addEventListener('click', () => createUser().catch((e) => notify(e.message)));
-  $('dashboardSelect').addEventListener('change', async (e) => { state.dashboard = e.target.value; dashboard.saveLocal(); await dashboard.render(); }); $('themeToggle').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = state.theme; dashboard.saveLocal(); });
-  $('neonToggle').addEventListener('click', () => { state.visual = state.visual === 'neon' ? 'minimal' : 'neon'; document.documentElement.dataset.visual = state.visual; dashboard.saveLocal(); }); $('consoleToggle').addEventListener('click', () => { state.consoleMode = !state.consoleMode; document.body.classList.toggle('console-mode', state.consoleMode); dashboard.saveLocal(); }); $('refreshAll').addEventListener('click', () => refreshWorkspace().then(() => notify('Workspace refreshed')).catch((e) => notify(e.message))); $('addWidget').addEventListener('click', () => dashboard.addWidget($('widgetType').value));
+  $('dashboardSelect').addEventListener('change', async (e) => { state.dashboard = e.target.value; dashboard.saveLocal(); await dashboard.render(); }); $('themeToggle').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = state.theme; updateToggleStates(); dashboard.saveLocal(); });
+  $('neonToggle').addEventListener('click', () => { state.visual = state.visual === 'neon' ? 'minimal' : 'neon'; document.documentElement.dataset.visual = state.visual; updateToggleStates(); dashboard.saveLocal(); }); $('consoleToggle').addEventListener('click', () => { state.consoleMode = !state.consoleMode; document.body.classList.toggle('console-mode', state.consoleMode); updateToggleStates(); dashboard.saveLocal(); }); $('refreshAll').addEventListener('click', () => refreshWorkspace().then(() => notify('Workspace refreshed')).catch((e) => notify(e.message))); $('addWidget').addEventListener('click', () => dashboard.addWidget($('widgetType').value));
   $('searchInput').addEventListener('input', (e) => { const q = e.target.value.trim().toLowerCase(); dashboard.widgets.forEach((w) => { w.element.hidden = Boolean(q) && !(w.config.title + ' ' + w.config.type).toLowerCase().includes(q); }); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) && !document.activeElement?.isContentEditable) {
+      e.preventDefault();
+      $('searchInput')?.focus();
+    }
+  });
   document.querySelectorAll('.nav-item').forEach((button) => button.addEventListener('click', async () => { document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active')); button.classList.add('active'); state.view = button.dataset.view; await dashboard.render(); }));
 }
 
@@ -137,7 +148,7 @@ async function authenticated() {
 }
 
 async function boot() {
-  const local = dashboard.storage; state.theme = local.theme || 'dark'; state.visual = local.visual || 'neon'; state.consoleMode = Boolean(local.consoleMode); state.dashboard = local.dashboard || 'operations'; document.documentElement.dataset.theme = state.theme; document.documentElement.dataset.visual = state.visual; document.body.classList.toggle('console-mode', state.consoleMode);
+  const local = dashboard.storage; state.theme = local.theme || 'dark'; state.visual = local.visual || 'neon'; state.consoleMode = Boolean(local.consoleMode); state.dashboard = local.dashboard || 'operations'; document.documentElement.dataset.theme = state.theme; document.documentElement.dataset.visual = state.visual; document.body.classList.toggle('console-mode', state.consoleMode); updateToggleStates();
   bindEvents(); const session = await api('/api/auth/session'); if (session.authenticated) { state.csrf = session.csrf; globalThis.__glowhavenCsrf = state.csrf; await authenticated(); return; } $('authScreen').hidden = false; $('appShell').hidden = true; $('loginForm').hidden = session.setupRequired; $('setupForm').hidden = !session.setupRequired; $('ssoButton').hidden = !session.oidcEnabled;
 }
 
