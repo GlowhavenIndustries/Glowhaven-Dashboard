@@ -17,7 +17,7 @@ Glowhaven combines common operational signals into one command surface:
 - **Calendar** with GitHub, Google Calendar, and compatible Outlook support
 - **Weather** with Open-Meteo support, including temperature, conditions, wind, AQI, and UV
 - **Dashboards** for separate workspaces such as Operations and Team
-- **Access modes** with admin editing and viewer access
+- **Access modes** with local admin editing and viewer UI modes
 - **Search and modules** for filtering and extending workspaces
 - **Import and export** for portable JSON configuration
 - **Themes** with dark, light, neon, minimal, and console presentation modes
@@ -76,11 +76,11 @@ The operations widgets are adapter-ready. The interface is available now, while 
 
 Workspace configuration is stored in browser `localStorage` and can be exported or imported as JSON.
 
-Local storage is not a replacement for enterprise authentication, authorization, secrets management, or encrypted server-side storage.
+Local storage is not a replacement for enterprise authentication, authorization, secrets management, or encrypted server-side storage. The built-in admin/viewer selector is a UI mode, not enterprise authentication.
 
 ## Configure Glowhaven for a company
 
-The default configuration is intentionally generic.
+The default configuration is intentionally unconfigured for company data. Connect your own systems from Settings.
 
 Customize:
 
