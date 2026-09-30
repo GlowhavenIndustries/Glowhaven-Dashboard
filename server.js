@@ -226,12 +226,14 @@ async function api(req, res, url) {
 function contentType(file) { return ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' })[path.extname(file).toLowerCase()] || 'application/octet-stream'; }
 async function staticFile(res, pathname) {
   const requestPath = pathname === '/' ? '/index.html' : pathname;
-  const publicPath = requestPath.replace(/^\/+/, '');
+  const normalizedPath = path.normalize(requestPath).replace(/\\/g, '/');
+  if (normalizedPath.split('/').includes('..')) return send(res, 403, 'Forbidden');
+  const publicPath = normalizedPath.replace(/^\/+/, '');
   const publicAllowed = publicPath === 'index.html' || publicPath === 'app.js' || publicPath === 'dataSources.js' || publicPath === 'styles.css' || publicPath.startsWith('widgets/') || publicPath.startsWith('assets/');
   if (!publicAllowed) return send(res, 404, 'Not found');
-  const file = path.resolve(ROOT, '.' + requestPath);
+  const file = path.resolve(ROOT, '.' + normalizedPath);
   const relative = path.relative(ROOT, file);
-  if (relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return send(res, 403, 'Forbidden');
+  if (relative.startsWith('..' + path.sep) || path.isAbsolute(relative) || relative === '..') return send(res, 403, 'Forbidden');
   try { const stat = await fs.stat(file); if (!stat.isFile()) throw new Error('not file'); const content = await fs.readFile(file); res.writeHead(200, { ...securityHeaders(), 'Cache-Control': 'no-store', 'Content-Type': contentType(file) }); res.end(content); } catch { send(res, 404, 'Not found'); }
 }
 
