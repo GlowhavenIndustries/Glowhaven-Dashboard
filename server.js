@@ -66,7 +66,9 @@ async function remoteJson(inputUrl, options = {}) {
 async function upsertIntegration(user, kind, input) {
   if (!/^[a-z][a-z0-9_-]{1,31}$/i.test(kind)) throw fail('Invalid integration type');
   const old = state.integrations[kind] || { id: kind, kind };
-  const endpoint = input.endpoint ? await validateRemoteUrl(input.endpoint) : (old.endpoint || '');
+  const endpoint = Object.prototype.hasOwnProperty.call(input, 'endpoint')
+    ? (input.endpoint ? await validateRemoteUrl(input.endpoint) : '')
+    : (old.endpoint || '');
   const settings = input.settings && typeof input.settings === 'object' ? input.settings : (old.settings || {});
   const item = { id: kind, kind, name: String(input.name || old.name || kind).trim().slice(0, 120), endpoint, authType: ['none', 'bearer', 'apiKey'].includes(input.authType) ? input.authType : (old.authType || 'none'), settings, updatedAt: new Date().toISOString() };
   state.integrations[kind] = item;
@@ -221,7 +223,11 @@ async function api(req, res, url) {
 
 function contentType(file) { return ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' })[path.extname(file).toLowerCase()] || 'application/octet-stream'; }
 async function staticFile(res, pathname) {
-  const requestPath = pathname === '/' ? '/index.html' : pathname; const file = path.resolve(ROOT, '.' + requestPath);
+  const requestPath = pathname === '/' ? '/index.html' : pathname;
+  const publicPath = requestPath.replace(/^\/+/, '');
+  const publicAllowed = publicPath === 'index.html' || publicPath === 'app.js' || publicPath === 'dataSources.js' || publicPath === 'styles.css' || publicPath.startsWith('widgets/') || publicPath.startsWith('assets/');
+  if (!publicAllowed) return send(res, 404, 'Not found');
+  const file = path.resolve(ROOT, '.' + requestPath);
   if (!file.startsWith(ROOT)) return send(res, 403, 'Forbidden');
   try { const stat = await fs.stat(file); if (!stat.isFile()) throw new Error('not file'); const content = await fs.readFile(file); res.writeHead(200, { ...securityHeaders(), 'Cache-Control': 'no-store', 'Content-Type': contentType(file) }); res.end(content); } catch { send(res, 404, 'Not found'); }
 }
