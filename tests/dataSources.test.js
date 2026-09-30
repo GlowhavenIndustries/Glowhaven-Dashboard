@@ -118,7 +118,7 @@ describe('data source providers', () => {
     assert.equal(weather.temp, '72°');
     assert.match(weather.conditions, /Partly cloudy/);
     assert.equal(weather.aqi, 'N/A');
-    assert.equal(calls, 3);
+    assert.equal(calls, 2);
   });
 
   it('isolates GitHub repository failures', async () => {
