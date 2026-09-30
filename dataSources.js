@@ -188,8 +188,8 @@ function getLocation(config = {}) {
 
   return {
     city: typeof location.city === 'string' ? location.city : '',
-    lat: Number.isFinite(latitude) ? latitude : 37.7749,
-    lon: Number.isFinite(longitude) ? longitude : -122.4194,
+    lat: Number.isFinite(latitude) ? latitude : null,
+    lon: Number.isFinite(longitude) ? longitude : null,
   };
 }
 
@@ -277,6 +277,9 @@ export async function fetchWeather(config = {}) {
     const source = config.openMeteo || config.openWeather || {};
     const location = getLocation(source);
     const units = source.units || 'imperial';
+    if (!Number.isFinite(location.lat) || !Number.isFinite(location.lon)) {
+      return { temp: 'N/A', conditions: 'Configure a weather location in Settings', wind: 'N/A', aqi: 'N/A', uv: 'N/A' };
+    }
 
     const weatherUrl = new URL('https://api.open-meteo.com/v1/forecast');
     weatherUrl.searchParams.set('latitude', location.lat);
