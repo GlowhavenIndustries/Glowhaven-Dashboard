@@ -2,34 +2,54 @@
 
 Glowhaven Dashboard is a local-first operations platform for companies that want one customizable workspace for monitoring, coordination, and future automation.
 
-It is designed to be **company-agnostic**: configure your organization, data sources, dashboards, and modules instead of rebuilding the app for every team.
+It is designed to be company-agnostic. Configure your organization, data sources, dashboards, and modules instead of rebuilding the app for every team.
 
-## What it does
+## Current platform
 
-Glowhaven brings common operational signals into one command surface:
+Glowhaven combines common operational signals into one command surface:
 
-- **Business KPIs** — a ready-to-connect surface for revenue, orders, tickets, usage, and other company metrics.
-- **Incident Center** — keep operational failures and attention items visible.
-- **Automation Queue** — a first-class place for repeatable actions and future automation adapters.
-- **Team Activity** — lightweight workspace activity and status.
-- **GitHub Pipelines** — monitor the latest GitHub Actions run for configured repositories.
-- **Service Health** — check configured endpoints for uptime, failures, and latency.
-- **Calendar** — show activity from GitHub, Google Calendar, or a compatible Outlook endpoint.
-- **Weather** — Open-Meteo support with temperature, conditions, wind, AQI, and UV.
-- **Dashboards** — switch between different workspaces such as Operations and Team.
-- **Access modes** — admin editing controls and viewer mode.
-- **Search + modules** — filter widgets and add/remove modules from a workspace.
-- **Import/export** — move workspace configuration between environments as JSON.
-- **Themes** — dark/light, neon/minimal, and console presentation modes.
-- **Responsive layout** — desktop, tablet, and mobile support without a framework or bundler.
+- **Business KPIs** for revenue, orders, tickets, usage, and other company metrics
+- **Incident Center** for operational failures and attention items
+- **Automation Queue** for repeatable actions and future automation adapters
+- **Team Activity** for shared workspace activity
+- **GitHub Pipelines** for monitoring configured GitHub Actions repositories
+- **Service Health** for endpoint uptime, failures, and latency
+- **Calendar** with GitHub, Google Calendar, and compatible Outlook support
+- **Weather** with Open-Meteo support, including temperature, conditions, wind, AQI, and UV
+- **Dashboards** for separate workspaces such as Operations and Team
+- **Access modes** with admin editing and viewer access
+- **Search and modules** for filtering and extending workspaces
+- **Import and export** for portable JSON configuration
+- **Themes** with dark, light, neon, minimal, and console presentation modes
+- **Responsive layout** for desktop, tablet, and mobile
+
+## Why it exists
+
+Most companies spread important information across separate dashboards, monitoring tools, project systems, calendars, and internal pages.
+
+Glowhaven provides a single operational surface where teams can bring those signals together and eventually take action from the same workspace.
+
+The goal is not to replace every specialized system. The goal is to give a company one place to understand what is happening.
 
 ## Architecture
 
 ### App shell
-A small state-driven dashboard controller manages workspaces, roles, persistence, module registration, and refresh actions.
+
+A state-driven dashboard controller manages:
+
+- organization configuration
+- workspaces
+- roles
+- module registration
+- local persistence
+- refresh actions
+- configuration import and export
 
 ### Widget system
-Widgets are independently loaded ES modules. Current modules include:
+
+Widgets are independently loaded ES modules.
+
+Current widget types:
 
 - `calendar`
 - `weather`
@@ -40,32 +60,40 @@ Widgets are independently loaded ES modules. Current modules include:
 - `automations`
 - `activity`
 
-The operations widgets are intentionally adapter-ready: the UI exists now, while real company systems can be connected through dedicated data adapters.
+The operations widgets are adapter-ready. The interface is available now, while real company systems can be connected through dedicated data adapters.
 
 ### Data layer
-`dataSources.js` provides shared request handling, timeouts, retries, normalization, and source-specific fetchers.
+
+`dataSources.js` provides shared:
+
+- request timeouts
+- retries
+- response handling
+- normalization
+- source-specific fetchers
 
 ### Local-first configuration
-Workspace state is stored in browser `localStorage` and can be exported/imported as JSON.
 
-**Important:** local configuration storage is not a substitute for enterprise authentication, authorization, secrets management, or encrypted server-side storage.
+Workspace configuration is stored in browser `localStorage` and can be exported or imported as JSON.
 
-## Configure it for a company
+Local storage is not a replacement for enterprise authentication, authorization, secrets management, or encrypted server-side storage.
 
-Edit the configuration in `app.js` or import a JSON configuration.
+## Configure Glowhaven for a company
 
-Common things to customize:
+The default configuration is intentionally generic.
+
+Customize:
 
 - organization name
-- dashboard layouts
-- widget titles and placement
+- dashboards
+- widget layout
 - GitHub repositories
 - service health endpoints
 - weather location
 - calendar provider
 - refresh intervals
 
-The default configuration is intentionally generic so the same codebase can be adapted to another organization.
+Configuration can be changed in `app.js` or imported through the dashboard.
 
 ## Run locally
 
@@ -90,26 +118,32 @@ npm test
 npm run check
 ```
 
-`npm run check` validates the JavaScript modules for syntax errors.
+`npm run check` validates JavaScript syntax across the application modules.
 
 No framework or bundler is required.
 
 ## Roadmap
 
-Glowhaven Dashboard is structured to grow into a broader operations platform. Natural next integrations include:
+Glowhaven is structured to grow into a broader operations platform.
 
-- Slack / Microsoft Teams notifications
-- Jira and Linear workflows
+Planned integration areas include:
+
+- Slack and Microsoft Teams
+- Jira and Linear
 - Google Workspace and Microsoft 365
-- Stripe and business KPI adapters
-- database and internal API adapters
+- Stripe and business KPI systems
+- databases and internal APIs
 - real automation execution
-- secure authentication and role management
+- secure authentication
+- organization-level permissions
 - encrypted secrets handling
-- audit logs and organization-level administration
+- audit logs
+- plugin and integration management
 
-## Project goal
+## Product direction
 
-**Glowhaven Dashboard is the operating surface. Your company's systems provide the signals and actions.**
+**Monitor. Understand. Coordinate. Act.**
 
-Build the future, on your terms.
+Glowhaven Dashboard is the operating surface. A company's existing systems provide the signals and actions.
+
+Built for teams that want a flexible command center they can shape around the way they work.
