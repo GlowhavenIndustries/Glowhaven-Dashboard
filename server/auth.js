@@ -1,4 +1,4 @@
-import { hashToken, randomToken, hashPassword, verifyPassword } from './security.js';
+import { hashToken, randomToken, hashPassword, verifyPassword, verifyApiKey } from './security.js';
 import { getSessionStore } from './sessionStore.js';
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -80,8 +80,7 @@ export function parseApiKey(req) {
 export function sessionUser(state, req) {
   const apiKeyToken = parseApiKey(req);
   if (apiKeyToken && Array.isArray(state.apiKeys)) {
-    const keyHash = hashToken(apiKeyToken);
-    const apiKey = state.apiKeys.find((k) => k.keyHash === keyHash);
+    const apiKey = state.apiKeys.find((k) => verifyApiKey(apiKeyToken, k));
     if (apiKey) {
       apiKey.lastUsedAt = new Date().toISOString();
       return {

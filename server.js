@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { URL, fileURLToPath } from 'node:url';
 import { appendAudit, loadSecrets, loadState, saveSecrets, saveState, readAudit, readLastAuditHash, verifyAuditChain, DATA_DIR } from './server/storage.js';
-import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, hashPassword, hashToken, randomToken, requestJson, securityHeaders, validateRemoteUrl } from './server/security.js';
+import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, hashApiKey, hashPassword, hashToken, randomToken, requestJson, securityHeaders, validateRemoteUrl } from './server/security.js';
 import { clearSessionCookie, csrfToken, login, logout, requireCsrf, requirePermission, revokeUserSessions, sanitizeUser, sessionUser, setupOwner } from './server/auth.js';
 import { finishOidc, isOidcConfigured, startOidc } from './server/oidc.js';
 
@@ -52,29 +52,6 @@ async function audit(user, action, details = {}) {
   await appendAudit(entry);
   state.lastAuditHash = entry.hash;
   await saveState(state);
-}
-
-export function checkIntegrationAccess(integration, user, req) {
-  if (!integration || !user || user.role === 'owner' || user.role === 'admin') return true;
-
-  if (integration.workspaceId) {
-    const userWorkspace = user.workspaceId || user.workspace || req?.headers?.['x-workspace-id'];
-    if (!userWorkspace || userWorkspace !== integration.workspaceId) {
-      throw fail('Access to integration secrets is restricted to workspace: ' + integration.workspaceId, 403);
-    }
-  }
-
-  if (Array.isArray(integration.executionGroups) && integration.executionGroups.length > 0) {
-    const headerGroup = req?.headers?.['x-execution-group'];
-    const userGroups = Array.isArray(user.executionGroups) ? user.executionGroups : (Array.isArray(user.groups) ? user.groups : []);
-    const allUserGroups = headerGroup ? [...userGroups, headerGroup] : userGroups;
-    const hasMatch = integration.executionGroups.some((group) => allUserGroups.includes(group));
-    if (!hasMatch) {
-      throw fail('Access to integration secrets is restricted to execution groups: ' + integration.executionGroups.join(', '), 403);
-    }
-  }
-
-  return true;
 }
 
 function safeIntegration(item, includeConfig = false) {
@@ -466,13 +443,15 @@ async function api(req, res, url) {
     if (!name) throw fail('API Key name is required', 400);
     const role = ['admin', 'operator', 'viewer'].includes(input.role) ? input.role : 'viewer';
     const rawToken = 'gh_ak_' + randomToken(32);
-    const keyHash = hashToken(rawToken);
+    const apiKeyHashRecord = hashApiKey(rawToken);
     const prefix = rawToken.slice(0, 12) + '...';
     const keyRecord = {
       id: crypto.randomUUID(),
       name,
       role,
-      keyHash,
+      salt: apiKeyHashRecord.salt,
+      hash: apiKeyHashRecord.hash,
+      version: apiKeyHashRecord.version,
       prefix,
       createdAt: new Date().toISOString(),
       lastUsedAt: null,
@@ -522,4 +501,7 @@ const server = http.createServer(async (req, res) => {
   try { if (!sameOrigin(req)) throw fail('Origin validation failed', 403); const url = new URL(req.url, 'http://' + (req.headers.host || 'localhost')); if (url.pathname.startsWith('/api/')) await api(req, res, url); else if (req.method === 'GET' || req.method === 'HEAD') await staticFile(res, url.pathname); else throw fail('Method not allowed', 405); }
   catch (error) { send(res, error.statusCode || 500, { error: error.message || 'Request failed' }); }
 });
-server.listen(PORT, () => console.log('Glowhaven server listening on port ' + PORT));
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  server.listen(PORT, () => console.log('Glowhaven server listening on port ' + PORT));
+}

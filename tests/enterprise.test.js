@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { checkIntegrationAccess } from '../server/security.js';
+import { checkIntegrationAccess, hashApiKey } from '../server/security.js';
 import { extractGroups, roleForClaims } from '../server/oidc.js';
 import { fetchAwsSecret, fetchVaultSecret, fetchAzureKeyVaultSecret, resolveExternalMasterKey } from '../server/secretManager.js';
 
@@ -56,12 +56,14 @@ test('enterprise features: user lifecycle, API keys, audit search/CSV, and SSO d
     );
 
     const rawKeyToken = 'gh_ak_' + security.randomToken(32);
-    const keyHash = security.hashToken(rawKeyToken);
+    const keyHashRec = hashApiKey(rawKeyToken);
     state.apiKeys.push({
       id: 'key-1',
       name: 'CI Bot',
       role: 'operator',
-      keyHash,
+      salt: keyHashRec.salt,
+      hash: keyHashRec.hash,
+      version: keyHashRec.version,
       prefix: rawKeyToken.slice(0, 12) + '...',
       createdAt: new Date().toISOString(),
       lastUsedAt: null,

@@ -29,6 +29,35 @@ export function verifyPassword(password, record) {
   }
 }
 
+export function hashApiKey(token, salt = crypto.randomBytes(16)) {
+  const derived = crypto.scryptSync(token, salt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  return { salt: salt.toString('hex'), hash: derived.toString('hex'), version: 1 };
+}
+
+export function verifyApiKey(token, record) {
+  if (!record || !token) return false;
+  if (record.salt && record.hash) {
+    try {
+      const derived = crypto.scryptSync(token, Buffer.from(record.salt, 'hex'), 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+      const expected = Buffer.from(record.hash, 'hex');
+      return expected.length === derived.length && crypto.timingSafeEqual(expected, derived);
+    } catch {
+      return false;
+    }
+  }
+  if (record.keyHash) {
+    try {
+      const computed = hashToken(token);
+      const expected = Buffer.from(record.keyHash, 'utf8');
+      const actual = Buffer.from(computed, 'utf8');
+      return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 export function checkIntegrationAccess(integration, user, req) {
   if (!integration || !user || user.role === 'owner' || user.role === 'admin') return true;
 
