@@ -1,83 +1,99 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#07090d"><meta name="description" content="Glowhaven Industries operational command platform">
-<title>Glowhaven Industries | Operations Platform</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#06080c">
+<meta name="description" content="Glowhaven company operations platform">
+<title>Glowhaven | Operations Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="app">
+<div class="auth-screen" id="authScreen" hidden>
+  <section class="auth-card">
+    <div class="brand auth-brand"><div class="brand-mark" aria-hidden="true"></div><div><strong>Glowhaven</strong><span>Operations Platform</span></div></div>
+    <span class="eyebrow">Secure access</span>
+    <h1>Company command center</h1>
+    <p class="muted">Sign in to access your organization's operational workspace.</p>
+    <form id="loginForm">
+      <label><span>Work email</span><input id="loginEmail" type="email" autocomplete="username" required></label>
+      <label><span>Password</span><input id="loginPassword" type="password" autocomplete="current-password" required></label>
+      <button class="pill primary full" type="submit">Sign in</button>
+    </form>
+    <form id="setupForm" hidden>
+      <label><span>Administrator email</span><input id="setupEmail" type="email" autocomplete="username" required></label>
+      <label><span>Administrator password</span><input id="setupPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+      <label><span>Confirm password</span><input id="setupPasswordConfirm" type="password" autocomplete="new-password" minlength="12" required></label>
+      <button class="pill primary full" type="submit">Create secure workspace</button>
+    </form>
+    <button class="pill full" id="ssoButton" type="button" hidden>Continue with company SSO</button>
+  </section>
+</div>
+
+<div class="app-shell" id="appShell" hidden>
 <aside class="sidebar">
-  <div class="brand"><div class="brand-mark" aria-hidden="true"><span></span></div><div><strong>Glowhaven</strong><span>Operations Platform</span></div></div>
+  <div class="brand"><div class="brand-mark" aria-hidden="true"></div><div><strong>Glowhaven</strong><span>Operations Platform</span></div></div>
   <nav class="nav" aria-label="Primary">
     <button class="nav-item active" data-view="Overview">Overview</button>
     <button class="nav-item" data-view="Automations">Automations</button>
     <button class="nav-item" data-view="Workflow">Workflow</button>
     <button class="nav-item" data-view="Devices">Devices</button>
     <button class="nav-item" data-view="Analytics">Analytics</button>
-    <button class="nav-item" id="settingsButton" data-view="Settings">Settings</button>
   </nav>
-  <div class="sidebar-card"><span class="eyebrow">Workspace</span><strong id="statusOrg">Your Company</strong><span>Operational command fabric</span><div class="online-dot"><i></i> Runtime ready</div></div>
+  <div class="sidebar-bottom">
+    <div class="sidebar-card"><span class="eyebrow">Organization</span><strong id="statusOrg">Company Workspace</strong><span>Protected operational environment</span></div>
+    <div class="user-card"><div><strong id="userEmail">Account</strong><span id="userRole">viewer</span></div><button class="icon-button" id="logoutButton" type="button" aria-label="Sign out">↪</button></div>
+  </div>
 </aside>
+
 <main class="main">
 <header class="topbar">
- <div><span class="eyebrow">Glowhaven / Operations</span><h1>Run the company from one surface.</h1><p class="muted">Monitor, automate, triage, and coordinate work without rebuilding the workspace for every team.</p></div>
- <div class="top-actions"><label class="search"><span>⌕</span><input id="searchInput" aria-label="Search modules" placeholder="Search modules…"></label><button class="pill" id="themeToggle">Theme</button><button class="pill" id="neonToggle">Visual</button><button class="pill" id="consoleToggle">Console</button><button class="pill primary" id="launchButton">Open setup</button></div>
+  <div><span class="eyebrow">Glowhaven / Operations</span><h1 id="companyName">Company Workspace</h1><p class="muted">Monitor business signals, coordinate work, and operate connected systems from one secured surface.</p></div>
+  <div class="top-actions">
+    <label class="search"><span>⌕</span><input id="searchInput" aria-label="Search modules"></label>
+    <button class="pill" id="themeToggle" type="button">Theme</button><button class="pill" id="neonToggle" type="button">Visual</button><button class="pill" id="consoleToggle" type="button">Console</button><button class="pill primary" id="settingsButton" type="button">Company settings</button>
+  </div>
 </header>
-<section class="hero-card">
- <div class="hero-copy"><span class="eyebrow">Executive pulse</span><h2>See what needs attention. Act from the same screen.</h2><p class="muted">A company-agnostic command layer for engineering, operations, support, and leadership.</p><div class="hero-actions"><button class="pill primary" id="refreshAll">Refresh everything</button><span class="status-pill positive">Local runtime</span></div></div>
- <div class="hero-metrics"><div><span>Availability</span><strong id="metricAvailability">-</strong></div><div><span>Latency</span><strong id="metricLatency">-</strong></div><div><span>Alerts</span><strong id="metricAlerts">-</strong></div><div><span>Mode</span><strong id="metricMode">GLOW</strong></div></div>
-</section>
-<section class="control-panel">
- <label><span>Workspace</span><select id="dashboardSelect"><option value="operations">Operations</option><option value="team">Team</option></select></label>
- <label><span>Access</span><select id="roleSelect"><option value="admin">Admin</option><option value="viewer">Viewer</option></select></label>
- <div class="control-status"><span>Editing</span><b id="statusEdit">Admin controls active</b></div>
- <div class="control-actions"><select id="widgetType">
-  <option value="kpi">Business KPI</option><option value="incidents">Incident center</option><option value="automations">Automation queue</option><option value="activity">Team activity</option><option value="githubProjects">GitHub pipelines</option><option value="serverStatus">Service health</option><option value="weather">Weather</option><option value="calendar">Calendar</option>
- </select><button class="pill" id="addWidget">Add module</button><button class="pill" id="exportConfig">Export</button><button class="pill" id="importConfig">Import</button><input hidden type="file" id="importInput" accept=".json,application/json"></div>
-</section>
-<section class="quick-grid">
- <article><span class="eyebrow">Attention</span><h3>Incidents before dashboards</h3><p class="muted">Keep failures, degraded services, and operational notes visible beside normal metrics.</p></article>
- <article><span class="eyebrow">Execution</span><h3>Automations are first-class</h3><p class="muted">Queue repeatable actions locally now, with adapter hooks ready for real integrations later.</p></article>
- <article><span class="eyebrow">Portable</span><h3>Built for any company</h3><p class="muted">Company name, data sources, workspaces, and modules live in importable configuration.</p></article>
-</section>
-<section class="widget-area"><div class="section-header"><div><span class="eyebrow">Workspace</span><h2>Operational modules</h2></div><span class="muted">Drag to organize | Search to filter | Add to extend</span></div><div class="widget-grid" id="widgetGrid"></div></section>
 
-<dialog class="settings-dialog" id="settingsDialog">
-  <form method="dialog" class="settings-card">
-    <div class="section-header"><div><span class="eyebrow">Company setup</span><h2>Connect your systems</h2></div><button class="icon-button" id="settingsCancel" type="button" aria-label="Close settings">×</button></div>
-    <p class="muted">Configure public APIs, internal endpoints, repositories, and your company name. Credentials stored here remain in this browser.</p>
-    <div class="settings-grid">
-      <label><span>Company name</span><input id="settingsOrg" placeholder="Your Company"></label>
-      <label><span>Weather city</span><input id="settingsCity" placeholder="City"></label>
-      <label><span>Latitude</span><input id="settingsLat" type="number" step="any" placeholder="32.7767"></label>
-      <label><span>Longitude</span><input id="settingsLon" type="number" step="any" placeholder="-96.7970"></label>
-      <label class="wide"><span>Service health URLs, one per line</span><textarea id="settingsServices" rows="4" placeholder="https://api.example.com/health"></textarea></label>
-      <label class="wide"><span>GitHub repositories, owner/repo per line</span><textarea id="settingsRepos" rows="4" placeholder="company/api"></textarea></label>
-      <label class="wide"><span>GitHub token</span><input id="settingsGithubToken" type="password" autocomplete="off" placeholder="Optional"></label>
-      <label><span>Calendar provider</span><select id="settingsCalendarProvider"><option value="none">None</option><option value="github">GitHub</option><option value="google">Google Calendar</option><option value="outlook">Outlook</option></select></label>
-      <label><span>Calendar GitHub org</span><input id="settingsCalendarGithubOrg" placeholder="company"></label>
-      <label><span>Google Calendar ID</span><input id="settingsCalendarId" placeholder="Calendar ID"></label>
-      <label><span>Google API key</span><input id="settingsCalendarKey" type="password" autocomplete="off" placeholder="Optional"></label>
-      <label class="wide"><span>Outlook calendar endpoint</span><input id="settingsCalendarOutlook" type="url" placeholder="https://company.example/api/calendar"></label>
-      <label class="wide"><span>Outlook calendar token</span><input id="settingsCalendarOutlookToken" type="password" autocomplete="off" placeholder="Optional"></label>
-      <label class="wide"><span>KPI endpoint</span><input id="settingsKpi" type="url" placeholder="https://company.example/api/kpis"></label>
-      <label class="wide"><span>Incident endpoint</span><input id="settingsIncidents" type="url" placeholder="https://company.example/api/incidents"></label>
-      <label class="wide"><span>Automation endpoint</span><input id="settingsAutomations" type="url" placeholder="https://company.example/api/automations/run"></label>
-      <label class="wide"><span>Activity endpoint</span><input id="settingsActivity" type="url" placeholder="https://company.example/api/activity"></label>
-    </div>
-    <div class="settings-actions"><button class="pill" id="settingsCancelSecondary" type="button">Cancel</button><button class="pill primary" id="settingsSave" type="button">Save company settings</button></div>
-  </form>
-</dialog>
+<section class="hero-card">
+  <div class="hero-copy"><span class="eyebrow">Executive pulse</span><h2>Know what needs attention, then act.</h2><p class="muted">Live service telemetry, business integrations, incidents, workflows, and team signals in one workspace.</p><div class="hero-actions"><button class="pill primary" id="refreshAll" type="button">Refresh workspace</button><span class="status-pill positive">Authenticated</span></div></div>
+  <div class="hero-metrics"><div><span>Availability</span><strong id="metricAvailability">Not configured</strong></div><div><span>Latency</span><strong id="metricLatency">0ms</strong></div><div><span>Alerts</span><strong id="metricAlerts">0 open</strong></div><div><span>Mode</span><strong id="metricMode">GLOW</strong></div></div>
+</section>
+
+<section class="control-panel">
+  <label><span>Workspace</span><select id="dashboardSelect"><option value="operations">Operations</option><option value="team">Team</option></select></label>
+  <div class="control-status"><span>Access</span><b id="statusRole">viewer</b></div><div class="control-status"><span>Workspace controls</span><b id="statusEdit">View only</b></div>
+  <div class="control-actions"><select id="widgetType"><option value="kpi">Business KPIs</option><option value="incidents">Incident Center</option><option value="automations">Automation Queue</option><option value="activity">Team Activity</option><option value="githubProjects">Release Pipelines</option><option value="serverStatus">Service Health</option><option value="weather">Local Conditions</option><option value="calendar">Calendar</option></select><button class="pill" id="addWidget" type="button">Add module</button></div>
+</section>
+
+<section class="quick-grid">
+  <article><span class="eyebrow">Security</span><h3>Server-side credentials</h3><p class="muted">API credentials are stored encrypted on the application server, never in browser workspace state.</p></article>
+  <article><span class="eyebrow">Control</span><h3>Role-aware operations</h3><p class="muted">Management actions require authenticated server permissions and CSRF protection.</p></article>
+  <article><span class="eyebrow">Traceability</span><h3>Audited operations</h3><p class="muted">Administrative and automation actions are written to a tamper-evident audit trail.</p></article>
+</section>
+
+<section class="widget-area"><div class="section-header"><div><span class="eyebrow">Workspace</span><h2>Operational modules</h2></div><span class="muted">Search, organize, and extend your workspace</span></div><div class="widget-grid" id="widgetGrid"></div></section>
 <div class="toast" id="systemToast" role="status" aria-live="polite"></div>
 </main>
 </div>
-<script type="module" src="app.js"></script>
-<script>
 
-</script>
+<dialog class="settings-dialog" id="settingsDialog">
+<form class="settings-card">
+  <div class="section-header"><div><span class="eyebrow">Administration</span><h2>Company settings</h2></div><button class="icon-button" id="settingsCancel" type="button" aria-label="Close">×</button></div>
+  <div class="settings-section"><span class="eyebrow">Organization</span><div class="settings-grid"><label><span>Company name</span><input id="settingsOrg"></label><label><span>Timezone</span><input id="settingsTimezone"></label></div></div>
+  <div class="settings-section"><span class="eyebrow">Weather</span><div class="settings-grid"><label><span>City</span><input id="settingsCity"></label><label><span>Units</span><select id="settingsWeatherUnits"><option value="imperial">Imperial</option><option value="metric">Metric</option></select></label><label><span>Latitude</span><input id="settingsLat" type="number" step="any"></label><label><span>Longitude</span><input id="settingsLon" type="number" step="any"></label></div></div>
+  <div class="settings-section"><span class="eyebrow">Engineering</span><div class="settings-grid"><label class="wide"><span>Service health URLs</span><textarea id="settingsServices" rows="4"></textarea></label><label class="wide"><span>GitHub repositories</span><textarea id="settingsRepos" rows="4"></textarea></label><label class="wide"><span>GitHub token</span><input id="settingsGithubToken" type="password" autocomplete="new-password"></label></div></div>
+  <div class="settings-section"><span class="eyebrow">Business systems</span><div class="settings-grid"><label><span>KPI endpoint</span><input id="settingsKpi" type="url"></label><label><span>Incident endpoint</span><input id="settingsIncidents" type="url"></label><label><span>Automation endpoint</span><input id="settingsAutomations" type="url"></label><label><span>Activity endpoint</span><input id="settingsActivity" type="url"></label></div></div>
+  <div class="settings-section"><span class="eyebrow">Calendar</span><div class="settings-grid"><label><span>Provider</span><select id="settingsCalendarProvider"><option value="none">None</option><option value="github">GitHub</option><option value="google">Google Calendar</option><option value="outlook">Outlook</option></select></label><label><span>GitHub organization</span><input id="settingsCalendarGithubOrg"></label><label><span>Google calendar ID</span><input id="settingsCalendarId"></label><label><span>Calendar endpoint</span><input id="settingsCalendarEndpoint" type="url"></label><label class="wide"><span>Google or Outlook credential</span><input id="settingsCalendarSecret" type="password" autocomplete="new-password"></label></div></div>
+  <div class="settings-section admin-only"><span class="eyebrow">People</span><div class="settings-grid"><label><span>Email</span><input id="newUserEmail" type="email"></label><label><span>Temporary password</span><input id="newUserPassword" type="password" autocomplete="new-password"></label><label><span>Role</span><select id="newUserRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label><div class="inline-action"><button class="pill" id="userCreate" type="button">Create user</button></div></div><ul class="admin-list" id="userList"></ul></div>
+  <div class="settings-section admin-only"><span class="eyebrow">Audit trail</span><ul class="admin-list" id="auditList"></ul></div>
+  <div class="settings-actions"><button class="pill" id="settingsCancelSecondary" type="button">Close</button><button class="pill primary" id="settingsSave" type="button">Save settings</button></div>
+</form>
+</dialog>
+
+<script type="module" src="app.js"></script>
 </body>
 </html>
