@@ -122,8 +122,7 @@ async function integrationData(kind) {
       url.searchParams.set('maxResults', '5');
       url.searchParams.set('singleEvents', 'true');
       url.searchParams.set('orderBy', 'startTime');
-      url.searchParams.set('key', getSecret(kind));
-      const data = await remoteJson(url.toString());
+      const data = await remoteJson(url.toString(), { headers: authHeaders(integration) });
       return { events: (data.items || []).map((event) => ({ title: event.summary || 'Untitled', time: event.start?.dateTime || event.start?.date || '' })) };
     }
     if (settings.provider === 'outlook' && integration.endpoint) {
