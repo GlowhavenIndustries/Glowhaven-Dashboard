@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { URL, fileURLToPath } from 'node:url';
-import { appendAudit, loadSecrets, loadState, saveSecrets, saveState, readAudit, DATA_DIR } from './server/storage.js';
+import { appendAudit, loadSecrets, loadState, saveSecrets, saveState, readAudit, readLastAuditHash, verifyAuditChain, DATA_DIR } from './server/storage.js';
 import { auditHash, decryptSecret, encryptSecret, ensureMasterKey, requestJson, securityHeaders, validateRemoteUrl } from './server/security.js';
 import { clearSessionCookie, csrfToken, login, logout, requireCsrf, requirePermission, sanitizeUser, sessionUser, setupOwner } from './server/auth.js';
 import { finishOidc, isOidcConfigured, startOidc } from './server/oidc.js';
@@ -44,8 +44,12 @@ function sameOrigin(req) {
 }
 async function persist() { await saveState(state); await saveSecrets(secrets); }
 async function audit(user, action, details = {}) {
-  const entry = { id: crypto.randomUUID(), timestamp: new Date().toISOString(), actorId: user?.id || 'system', actorEmail: user?.email || 'system', action, details, previousHash: state.lastAuditHash || '' };
-  entry.hash = auditHash(entry, entry.previousHash); state.lastAuditHash = entry.hash; await saveState(state); await appendAudit(entry);
+  const previousHash = await readLastAuditHash();
+  const entry = { id: crypto.randomUUID(), timestamp: new Date().toISOString(), actorId: user?.id || 'system', actorEmail: user?.email || 'system', action, details, previousHash };
+  entry.hash = auditHash(entry, previousHash);
+  await appendAudit(entry);
+  state.lastAuditHash = entry.hash;
+  await saveState(state);
 }
 function safeIntegration(item, includeConfig = false) { const base = { id: item.id, kind: item.kind, name: item.name, authType: item.authType || 'none', configured: Boolean(item.endpoint || item.settings), updatedAt: item.updatedAt || null }; return includeConfig ? { ...base, endpoint: item.endpoint || '', settings: item.settings || {} } : base; }
 function getIntegration(kind, allowUnconfigured = false) {
@@ -211,7 +215,7 @@ async function api(req, res, url) {
   if (url.pathname.startsWith('/api/integrations/') && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); return send(res, 200, await upsertIntegration(actor, url.pathname.split('/')[3], await readBody(req))); }
   if (url.pathname.startsWith('/api/integrations/') && req.method === 'DELETE') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const kind = url.pathname.split('/')[3]; delete state.integrations[kind]; delete secrets[kind]; await persist(); await audit(actor, 'integration.deleted', { kind }); return send(res, 200, { ok: true }); }
   if (url.pathname === '/api/automations/run' && req.method === 'POST') { const actor = requirePermission(state, req, 'operate'); requireCsrf(state, req); return send(res, 200, await runAutomation(actor, await readBody(req))); }
-  if (url.pathname === '/api/audit' && req.method === 'GET') { requirePermission(state, req, 'audit'); return send(res, 200, await readAudit(url.searchParams.get('limit') || 200)); }
+  if (url.pathname === '/api/audit' && req.method === 'GET') { requirePermission(state, req, 'audit'); const verification = await verifyAuditChain(auditHash); if (!verification.valid) throw fail('Audit log integrity verification failed', 503); return send(res, 200, await readAudit(url.searchParams.get('limit') || 200)); }
   if (url.pathname === '/api/config' && req.method === 'GET') { requirePermission(state, req, 'view'); return send(res, 200, { organization: state.organization, integrations: Object.values(state.integrations).map((item) => safeIntegration(item, user.role === 'owner' || user.role === 'admin')), role: user.role }); }
   if (url.pathname === '/api/config' && req.method === 'PUT') { const actor = requirePermission(state, req, 'manage'); requireCsrf(state, req); const input = await readBody(req); if (typeof input.organization?.name === 'string') state.organization.name = input.organization.name.trim().slice(0, 120); if (typeof input.organization?.timezone === 'string') state.organization.timezone = input.organization.timezone.trim().slice(0, 80); await persist(); await audit(actor, 'organization.updated', { name: state.organization.name }); return send(res, 200, { organization: state.organization }); }
   if (url.pathname === '/api/users' && req.method === 'GET') { requirePermission(state, req, 'users'); return send(res, 200, state.users.map(sanitizeUser)); }
