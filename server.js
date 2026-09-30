@@ -16,7 +16,10 @@ const secureCookies = process.env.NODE_ENV === 'production';
 await ensureMasterKey(DATA_DIR);
 let state = await loadState();
 let secrets = await loadSecrets();
-state.users ||= []; state.sessions ||= {}; state.integrations ||= {}; state.organization ||= { name: '', timezone: 'UTC' };
+state.users = Array.isArray(state.users) ? state.users : [];
+state.sessions = Object.assign(Object.create(null), state.sessions && typeof state.sessions === 'object' ? state.sessions : {});
+state.integrations = Object.assign(Object.create(null), state.integrations && typeof state.integrations === 'object' ? state.integrations : {});
+state.organization = state.organization && typeof state.organization === 'object' ? state.organization : { name: '', timezone: 'UTC' };
 await saveState(state);
 
 function send(res, status, data, headers = {}) {
@@ -46,6 +49,7 @@ async function audit(user, action, details = {}) {
 }
 function safeIntegration(item, includeConfig = false) { const base = { id: item.id, kind: item.kind, name: item.name, authType: item.authType || 'none', configured: Boolean(item.endpoint || item.settings), updatedAt: item.updatedAt || null }; return includeConfig ? { ...base, endpoint: item.endpoint || '', settings: item.settings || {} } : base; }
 function getIntegration(kind, allowUnconfigured = false) {
+  if (!/^[a-z][a-z0-9_-]{1,31}$/i.test(kind)) throw fail('Invalid integration type');
   const integration = state.integrations[kind];
   if (!integration && allowUnconfigured) return { id: kind, kind, name: kind, settings: {} };
   if (!integration) throw fail(kind + ' integration is not configured', 404);
