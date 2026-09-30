@@ -55,9 +55,12 @@ export async function saveSecrets(secrets) {
   await writeJson(FILES.secrets, secrets);
 }
 
+let auditWrite = Promise.resolve();
+
 export async function appendAudit(entry) {
-  await ensureDir();
-  await fs.appendFile(FILES.audits, JSON.stringify(entry) + '\n', { encoding: 'utf8', mode: 0o600 });
+  auditWrite = auditWrite.then(async () => {
+    await ensureDir();
+    await fs.appendFile(FILES.audits, JSON.stringify(entry) + '\\n', { encoding: 'utf8', mode: 0o600 });
     try { await fs.chmod(FILES.audits, 0o600); } catch {}
   });
   return auditWrite;
