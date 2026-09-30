@@ -354,12 +354,18 @@ export async function fetchServerStatus(config = {}) {
 
 export async function fetchGithubProjects(config = {}) {
   const repositories = (
-    Array.isArray(config.repositories) && config.repositories.length
-      ? config.repositories
-      : DEFAULT_GITHUB_REPOS
+    Array.isArray(config.repositories) ? config.repositories : []
   )
     .filter((repo) => repo?.owner && repo?.repo)
     .slice(0, 8);
+
+  if (!repositories.length) {
+    return {
+      summary: 'Not configured',
+      items: [],
+      lastSync: 'Connect GitHub repositories in Settings',
+    };
+  }
 
   const headers = {
     ...JSON_HEADERS,
