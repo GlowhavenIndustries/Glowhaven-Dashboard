@@ -1,6 +1,14 @@
-import { Widget } from '../app.js';import { fetchServerStatus } from '../dataSources.js';
-export default class ServerStatusWidget extends Widget{
- renderContent(){const w=document.createElement('div');w.className='widget-content';this.stat=document.createElement('div');this.stat.className='widget-stat';this.list=document.createElement('ul');this.list.className='widget-list';this.footer=document.createElement('div');this.footer.className='widget-footer';w.append(this.stat,this.list,this.footer);this.updateData();this.interval=setInterval(()=>this.updateData(),this.dashboard.config.dataSources.serverStatus.refreshMs||15000);return w}
- async updateData(){try{this.renderStatus(await fetchServerStatus(this.dashboard.config.dataSources.serverStatus))}catch{this.stat.textContent='Offline';this.list.replaceChildren()}}
- renderStatus(d){this.stat.textContent=d.uptime;this.footer.textContent=d.incidents;this.list.replaceChildren(...d.services.map(s=>{const li=document.createElement('li'),name=document.createElement('span'),badge=document.createElement('span');name.textContent=s.name;badge.className='widget-badge';badge.textContent=s.status;li.append(name,badge);return li;}))}
+import { Widget } from '../app.js';
+import { fetchServerStatus } from '../dataSources.js';
+
+export default class ServerStatusWidget extends Widget {
+  renderContent() {
+    const root = document.createElement('div'); root.className='widget-content';
+    this.stat=document.createElement('div'); this.stat.className='widget-stat';
+    this.list=document.createElement('ul'); this.list.className='widget-list';
+    this.footer=document.createElement('div'); this.footer.className='widget-footer';
+    root.append(this.stat,this.list,this.footer); this.updateData(); this.every(()=>this.updateData(),15000); return root;
+  }
+  async updateData(){ try { this.renderStatus(await fetchServerStatus()); } catch { this.stat.textContent='Unavailable'; this.list.replaceChildren(); this.footer.textContent='Service monitor unavailable'; } }
+  renderStatus(data){ this.stat.textContent=data.uptime || 'Not configured'; this.footer.textContent='Average latency ' + (data.latencyAvg ?? 0) + 'ms'; this.list.replaceChildren(...(data.services?.length ? data.services.map((service)=>{const li=document.createElement('li'); const name=document.createElement('span'); const badge=document.createElement('span'); name.textContent=service.name; badge.className='widget-badge'; badge.textContent=service.status; li.append(name,badge); return li;}) : [Object.assign(document.createElement('li'),{textContent:'No services configured'})])); }
 }
