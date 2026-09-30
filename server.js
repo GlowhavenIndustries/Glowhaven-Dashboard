@@ -114,8 +114,8 @@ async function integrationData(kind) {
 
   if (kind === 'calendar') {
     const settings = integration.settings || {};
-    if (settings.provider === 'google' && integration.endpoint) {
-      const url = new URL(integration.endpoint);
+    if (settings.provider === 'google' && settings.calendarId && getSecret(kind)) {
+      const url = new URL('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(settings.calendarId) + '/events');
       url.searchParams.set('timeMin', new Date().toISOString());
       url.searchParams.set('maxResults', '5');
       url.searchParams.set('singleEvents', 'true');
