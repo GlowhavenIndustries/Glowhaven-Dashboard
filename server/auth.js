@@ -5,6 +5,7 @@ const AUTH_RATE_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_RATE_LIMIT = 10;
 
 const attempts = new Map();
+const MAX_RATE_KEYS = 10000;
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -21,6 +22,12 @@ function clientKey(req) {
 function checkRateLimit(req) {
   const key = clientKey(req);
   const now = Date.now();
+  if (attempts.size >= MAX_RATE_KEYS && !attempts.has(key)) {
+    for (const [candidate, value] of attempts) {
+      if (value.resetAt <= now) attempts.delete(candidate);
+    }
+    if (attempts.size >= MAX_RATE_KEYS) throw new Error('Authentication service is busy');
+  }
   const current = attempts.get(key) || { count: 0, resetAt: now + AUTH_RATE_WINDOW_MS };
   if (now > current.resetAt) {
     current.count = 0;
@@ -28,7 +35,11 @@ function checkRateLimit(req) {
   }
   current.count += 1;
   attempts.set(key, current);
-  if (current.count > AUTH_RATE_LIMIT) throw new Error('Too many authentication attempts');
+  if (current.count > AUTH_RATE_LIMIT) {
+    const error = new Error('Too many authentication attempts');
+    error.statusCode = 429;
+    throw error;
+  }
 }
 
 function cleanupSessions(state) {
