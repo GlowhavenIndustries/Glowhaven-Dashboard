@@ -56,7 +56,7 @@ class Dashboard {
   currentLayout() { const base = structuredClone(layouts[state.dashboard] || layouts.operations); const saved = this.storage.layouts?.[state.dashboard]; if (Array.isArray(saved)) base.widgets = saved; return base; }
   async render() {
     this.widgets.forEach((widget) => widget.destroy()); this.widgets = []; const grid = $('widgetGrid'); grid.replaceChildren();
-    const layout = this.currentLayout(); $('statusDashboard').textContent = layout.label; $('dashboardSelect').value = state.dashboard;
+    const layout = this.currentLayout(); if ($('statusDashboard')) $('statusDashboard').textContent = layout.label; $('dashboardSelect').value = state.dashboard;
     layout.widgets.filter((item) => viewFilter(state.view, item.type)).forEach((config) => { const Type = widgetClasses[config.type]; if (!Type) return; const widget = new Type(config, this); this.widgets.push(widget); grid.append(widget.render()); });
     $('statusEdit').textContent = this.canManageWorkspace ? 'Workspace controls enabled' : 'View only'; $('statusRole').textContent = state.role; $('statusOrg').textContent = state.organization.name || 'Company Workspace'; $('metricMode').textContent = state.consoleMode ? 'CONSOLE' : 'GLOW';
   }
@@ -79,8 +79,7 @@ async function api(path, options = {}) {
   if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   if (!['GET', 'HEAD'].includes(method) && state.csrf) headers.set('X-Glowhaven-CSRF', state.csrf);
   const response = await fetch(path, { ...options, headers, credentials: 'same-origin' }); let data = {}; try { data = await response.json(); } catch {}
-  if (!response.ok) throw new Error(data.error || 'Request failed'); return data;
-}
+  if (!response.ok) throw new Error(data.error || 'Request failed'); return data; }
 
 function notify(message) { const toast = $('systemToast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(notify.timer); notify.timer = setTimeout(() => toast.classList.remove('show'), 2800); }
 function integration(kind) { return state.integrations.find((item) => item.kind === kind) || { kind, settings: {} }; }
@@ -119,15 +118,91 @@ async function loadUsers() { if (!['owner', 'admin'].includes(state.role)) { doc
 async function createUser() { await api('/api/users', { method: 'POST', body: JSON.stringify({ email: $('newUserEmail').value.trim(), password: $('newUserPassword').value, role: $('newUserRole').value }) }); $('newUserEmail').value = ''; $('newUserPassword').value = ''; await loadUsers(); notify('User account created'); }
 async function loadAudit() { if (!['owner', 'admin'].includes(state.role)) return; const rows = await api('/api/audit?limit=100'); const list = $('auditList'); list.replaceChildren(...rows.map((entry) => { const row = document.createElement('li'); const a = document.createElement('span'); const b = document.createElement('span'); a.textContent = entry.action; b.textContent = new Date(entry.timestamp).toLocaleString(); row.append(a, b); return row; })); }
 
+async function verifyAudit() {
+  try {
+    const res = await api('/api/audit/verify', { method: 'POST', body: '{}' });
+    if (res.valid) {
+      notify(`Audit chain verified: ${res.count} records intact.`);
+      const pill = $('auditStatusPill');
+      if (pill) pill.textContent = `Audit Chain Verified (${res.count} entries)`;
+    } else {
+      notify('Audit verification alert: Chain mismatch detected!');
+    }
+  } catch (error) {
+    notify(error.message);
+  }
+}
+
+const commandList = [
+  { name: 'View: Overview', action: () => switchView('Overview') },
+  { name: 'View: Automations', action: () => switchView('Automations') },
+  { name: 'View: Workflow', action: () => switchView('Workflow') },
+  { name: 'View: Devices', action: () => switchView('Devices') },
+  { name: 'View: Analytics', action: () => switchView('Analytics') },
+  { name: 'Action: Refresh Workspace', action: () => refreshWorkspace().then(() => notify('Workspace refreshed')) },
+  { name: 'Action: Verify Audit Chain', action: () => verifyAudit() },
+  { name: 'Action: Open Company Settings', action: () => $('settingsButton')?.click() },
+  { name: 'Toggle: Color Theme', action: () => $('themeToggle')?.click() },
+  { name: 'Toggle: Visual Mode', action: () => $('neonToggle')?.click() },
+  { name: 'Toggle: Console Mode', action: () => $('consoleToggle')?.click() },
+];
+
+async function switchView(viewName) {
+  state.view = viewName;
+  document.querySelectorAll('.nav-item').forEach((item) => {
+    item.classList.toggle('active', item.dataset.view === viewName);
+  });
+  await dashboard.render();
+  notify(`Switched to ${viewName} view`);
+}
+
+function renderCmdResults(filter = '') {
+  const list = $('cmdResultsList');
+  if (!list) return;
+  const q = filter.trim().toLowerCase();
+  const matched = commandList.filter((cmd) => cmd.name.toLowerCase().includes(q));
+  list.replaceChildren(...matched.map((cmd) => {
+    const li = document.createElement('li');
+    li.className = 'cmd-item';
+    li.textContent = cmd.name;
+    li.addEventListener('click', () => {
+      $('cmdDialog')?.close();
+      cmd.action();
+    });
+    return li;
+  }));
+}
+
 function bindEvents() {
   $('loginForm').addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: $('loginEmail').value, password: $('loginPassword').value }) }); state.csrf = data.csrf; globalThis.__glowhavenCsrf = state.csrf; await authenticated(); } catch (error) { notify(error.message); } });
   $('setupForm').addEventListener('submit', async (e) => { e.preventDefault(); try { if ($('setupPassword').value !== $('setupPasswordConfirm').value) throw new Error('Passwords do not match'); const data = await api('/api/auth/setup', { method: 'POST', body: JSON.stringify({ email: $('setupEmail').value, password: $('setupPassword').value }) }); state.csrf = data.csrf; globalThis.__glowhavenCsrf = state.csrf; await authenticated(); } catch (error) { notify(error.message); } });
   $('ssoButton').addEventListener('click', () => { window.location.href = '/api/auth/oidc/start'; }); $('logoutButton').addEventListener('click', async () => { try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } finally { location.reload(); } });
   $('settingsButton').addEventListener('click', async () => { loadSettings(); await Promise.allSettled([loadUsers(), loadAudit()]); $('settingsDialog').showModal(); }); $('settingsCancel').addEventListener('click', () => $('settingsDialog').close()); $('settingsSave').addEventListener('click', () => saveSettings().catch((e) => notify(e.message))); $('userCreate').addEventListener('click', () => createUser().catch((e) => notify(e.message)));
+  $('auditVerifyBtn')?.addEventListener('click', () => verifyAudit());
+  $('cmdTriggerBtn')?.addEventListener('click', () => {
+    renderCmdResults('');
+    $('cmdSearchInput').value = '';
+    $('cmdDialog').showModal();
+    setTimeout(() => $('cmdSearchInput')?.focus(), 50);
+  });
+  $('cmdSearchInput')?.addEventListener('input', (e) => renderCmdResults(e.target.value));
+
   $('dashboardSelect').addEventListener('change', async (e) => { state.dashboard = e.target.value; dashboard.saveLocal(); await dashboard.render(); }); $('themeToggle').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = state.theme; updateToggleStates(); dashboard.saveLocal(); });
   $('neonToggle').addEventListener('click', () => { state.visual = state.visual === 'neon' ? 'minimal' : 'neon'; document.documentElement.dataset.visual = state.visual; updateToggleStates(); dashboard.saveLocal(); }); $('consoleToggle').addEventListener('click', () => { state.consoleMode = !state.consoleMode; document.body.classList.toggle('console-mode', state.consoleMode); updateToggleStates(); dashboard.saveLocal(); }); $('refreshAll').addEventListener('click', () => refreshWorkspace().then(() => notify('Workspace refreshed')).catch((e) => notify(e.message))); $('addWidget').addEventListener('click', () => dashboard.addWidget($('widgetType').value));
   $('searchInput').addEventListener('input', (e) => { const q = e.target.value.trim().toLowerCase(); dashboard.widgets.forEach((w) => { w.element.hidden = Boolean(q) && !(w.config.title + ' ' + w.config.type).toLowerCase().includes(q); }); });
   document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      renderCmdResults('');
+      $('cmdSearchInput').value = '';
+      if ($('cmdDialog')?.open) {
+        $('cmdDialog').close();
+      } else {
+        $('cmdDialog')?.showModal();
+        setTimeout(() => $('cmdSearchInput')?.focus(), 50);
+      }
+      return;
+    }
     if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) && !document.activeElement?.isContentEditable) {
       e.preventDefault();
       $('searchInput')?.focus();

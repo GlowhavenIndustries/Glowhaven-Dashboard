@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#06080c">
+<meta name="theme-color" content="#030508">
 <meta name="description" content="Glowhaven company operations platform">
 <title>Glowhaven | Operations Platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -53,13 +53,14 @@
 <header class="topbar">
   <div><span class="eyebrow">Glowhaven / Operations</span><h1 id="companyName">Company Workspace</h1><p class="muted">Monitor business signals, coordinate work, and operate connected systems from one secured surface.</p></div>
   <div class="top-actions">
-    <label class="search"><span>⌕</span><input id="searchInput" aria-label="Search modules" placeholder="Search modules... (/)" title="Press '/' to search modules"></label>
+    <label class="search"><span>⌕</span><input id="searchInput" aria-label="Search modules" placeholder="Search modules... (/)" title="Press '/' to search modules or Ctrl+K for Command Palette"></label>
+    <button class="pill gold" id="cmdTriggerBtn" type="button" title="Command Palette (Ctrl+K)">⌘K</button>
     <button class="pill" id="themeToggle" type="button" aria-pressed="false">Theme</button><button class="pill" id="neonToggle" type="button" aria-pressed="true">Visual</button><button class="pill" id="consoleToggle" type="button" aria-pressed="false">Console</button><button class="pill primary" id="settingsButton" type="button">Company settings</button>
   </div>
 </header>
 
 <section class="hero-card">
-  <div class="hero-copy"><span class="eyebrow">Executive pulse</span><h2>Know what needs attention, then act.</h2><p class="muted">Live service telemetry, business integrations, incidents, workflows, and team signals in one workspace.</p><div class="hero-actions"><button class="pill primary" id="refreshAll" type="button">Refresh workspace</button><span class="status-pill positive">Authenticated</span></div></div>
+  <div class="hero-copy"><span class="eyebrow">Executive pulse</span><h2>Know what needs attention, then act.</h2><p class="muted">Live service telemetry, business integrations, incidents, workflows, and team signals in one workspace.</p><div class="hero-actions"><button class="pill primary" id="refreshAll" type="button">Refresh workspace</button><span class="status-pill positive">Authenticated</span><span class="status-pill gold-badge" id="auditStatusPill">Audit Chain Verified</span></div></div>
   <div class="hero-metrics"><div><span>Availability</span><strong id="metricAvailability">Not configured</strong></div><div><span>Latency</span><strong id="metricLatency">0ms</strong></div><div><span>Alerts</span><strong id="metricAlerts">0 open</strong></div><div><span>Mode</span><strong id="metricMode">GLOW</strong></div></div>
 </section>
 
@@ -89,9 +90,19 @@
   <div class="settings-section"><span class="eyebrow">Business systems</span><div class="settings-grid"><label><span>KPI endpoint</span><input id="settingsKpi" type="url"></label><label><span>Incident endpoint</span><input id="settingsIncidents" type="url"></label><label><span>Automation endpoint</span><input id="settingsAutomations" type="url"></label><label><span>Activity endpoint</span><input id="settingsActivity" type="url"></label></div></div>
   <div class="settings-section"><span class="eyebrow">Calendar</span><div class="settings-grid"><label><span>Provider</span><select id="settingsCalendarProvider"><option value="none">None</option><option value="github">GitHub</option><option value="google">Google Calendar</option><option value="outlook">Outlook</option></select></label><label><span>GitHub organization</span><input id="settingsCalendarGithubOrg"></label><label><span>Google calendar ID</span><input id="settingsCalendarId"></label><label><span>Calendar endpoint</span><input id="settingsCalendarEndpoint" type="url"></label><label class="wide"><span>Google or Outlook credential</span><input id="settingsCalendarSecret" type="password" autocomplete="new-password"></label></div></div>
   <div class="settings-section admin-only"><span class="eyebrow">People</span><div class="settings-grid"><label><span>Email</span><input id="newUserEmail" type="email"></label><label><span>Temporary password</span><input id="newUserPassword" type="password" autocomplete="new-password"></label><label><span>Role</span><select id="newUserRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label><div class="inline-action"><button class="pill" id="userCreate" type="button">Create user</button></div></div><ul class="admin-list" id="userList"></ul></div>
-  <div class="settings-section admin-only"><span class="eyebrow">Audit trail</span><ul class="admin-list" id="auditList"></ul></div>
+  <div class="settings-section admin-only"><div class="section-header"><div><span class="eyebrow">Audit trail</span></div><button class="pill gold" id="auditVerifyBtn" type="button">Verify Hash Chain</button></div><ul class="admin-list" id="auditList"></ul></div>
   <div class="settings-actions"><button class="pill" id="settingsCancelSecondary" type="button">Close</button><button class="pill primary" id="settingsSave" type="button">Save settings</button></div>
 </form>
+</dialog>
+
+<dialog class="cmd-dialog" id="cmdDialog">
+  <div class="cmd-card">
+    <div class="cmd-search">
+      <span>⌘</span>
+      <input id="cmdSearchInput" placeholder="Type a command or search workspace..." autocomplete="off">
+    </div>
+    <ul class="cmd-results" id="cmdResultsList"></ul>
+  </div>
 </dialog>
 
 <script type="module" src="app.js"></script>

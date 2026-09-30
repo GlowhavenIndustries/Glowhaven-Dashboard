@@ -121,3 +121,12 @@ export async function executeAutomation(payload = {}) {
     body: JSON.stringify(payload),
   });
 }
+
+export async function executeIncidentAction(id, action = 'acknowledge') {
+  const csrf = globalThis.__glowhavenCsrf || '';
+  return fetchJson('/api/incidents/action', {
+    method: 'POST',
+    headers: csrf ? { 'X-Glowhaven-CSRF': csrf, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, action }),
+  });
+}
