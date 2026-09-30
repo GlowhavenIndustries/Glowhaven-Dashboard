@@ -91,10 +91,11 @@ export function resolveEndpointConfig(endpoints) {
   return endpoints
     .map((entry) => (typeof entry === 'string' ? { url: entry } : entry))
     .filter((entry) => typeof entry?.url === 'string' && entry.url.trim())
-    .map((entry) => ({
-      url: entry.url.trim(),
-      name: typeof entry.name === 'string' ? entry.name.trim() : undefined,
-    }));
+    .map((entry) => {
+      const normalized = { url: entry.url.trim() };
+      if (typeof entry.name === 'string' && entry.name.trim()) normalized.name = entry.name.trim();
+      return normalized;
+    });
 }
 
 export function mapWeatherCode(code) {
