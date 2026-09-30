@@ -5,6 +5,7 @@ import {
   fetchBusinessKpis,
   fetchIncidents,
   executeAutomation,
+  executeIncidentAction,
 } from '../dataSources.js';
 
 function listItem(label, meta = '') {
@@ -33,13 +34,13 @@ export class KpiWidget extends Widget {
     this.list.className = 'widget-list';
     root.append(this.list);
     this.updateData();
-    this.every(() => this.updateData(), this.dashboard.config.dataSources.kpi?.refreshMs || 60000);
+    this.every(() => this.updateData(), 60000);
     return root;
   }
 
   async updateData() {
     try {
-      const data = await fetchBusinessKpis(this.dashboard.config.dataSources.kpi || {});
+      const data = await fetchBusinessKpis();
       this.list.replaceChildren();
       if (!data.metrics.length) {
         this.list.append(emptyState('Connect a KPI endpoint or add metrics to configuration.'));
@@ -65,19 +66,39 @@ export class IncidentWidget extends Widget {
     this.list.className = 'widget-list';
     root.append(this.stat, this.list);
     this.updateData();
-    this.every(() => this.updateData(), this.dashboard.config.dataSources.incidents?.refreshMs || 30000);
+    this.every(() => this.updateData(), 30000);
     return root;
   }
 
   async updateData() {
     try {
-      const { incidents } = await fetchIncidents(this.dashboard.config.dataSources.incidents || {});
-      const open = incidents.filter((incident) => !['closed', 'resolved'].includes(incident.status.toLowerCase()));
+      const { incidents } = await fetchIncidents();
+      const open = incidents.filter((incident) => !['closed', 'resolved'].includes(String(incident.status || '').toLowerCase()));
       this.stat.textContent = `${open.length} open`;
       this.list.replaceChildren();
       if (!open.length) this.list.append(emptyState('No open incidents.'));
       open.slice(0, 6).forEach((incident) => {
-        this.list.append(listItem(incident.title, incident.severity));
+        const li = listItem(incident.title, incident.severity || 'open');
+        const ackBtn = document.createElement('button');
+        ackBtn.className = 'mini-button';
+        ackBtn.type = 'button';
+        ackBtn.textContent = 'Ack';
+        ackBtn.title = 'Acknowledge Incident';
+        ackBtn.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          ackBtn.disabled = true;
+          ackBtn.textContent = '...';
+          try {
+            await executeIncidentAction(incident.id || incident.title, 'acknowledge');
+            ackBtn.textContent = 'Acked';
+          } catch {
+            ackBtn.textContent = 'Err';
+          } finally {
+            setTimeout(() => { ackBtn.disabled = false; ackBtn.textContent = 'Ack'; }, 2000);
+          }
+        });
+        li.append(ackBtn);
+        this.list.append(li);
       });
     } catch {
       this.stat.textContent = 'Unavailable';
@@ -96,38 +117,36 @@ export class AutomationWidget extends Widget {
     this.list.className = 'widget-list';
     root.append(this.stat, this.list);
     this.updateData();
-    this.every(() => this.updateData(), this.dashboard.config.dataSources.automations?.refreshMs || 30000);
+    this.every(() => this.updateData(), 30000);
     return root;
   }
 
   async updateData() {
     try {
-      const { automations } = await fetchAutomations(this.dashboard.config.dataSources.automations || {});
+      const { automations } = await fetchAutomations();
       this.stat.textContent = `${automations.length} jobs`;
       this.list.replaceChildren();
       if (!automations.length) this.list.append(emptyState('No automations configured.'));
       automations.slice(0, 6).forEach((job) => {
-        const li = listItem(job.name, job.status);
-        if (this.dashboard.config.dataSources.automations?.endpoint) {
-          const button = document.createElement('button');
-          button.className = 'mini-button';
-          button.type = 'button';
-          button.textContent = 'Run';
-          button.addEventListener('click', async (event) => {
-            event.stopPropagation();
-            button.disabled = true;
-            button.textContent = '...';
-            try {
-              await executeAutomation(this.dashboard.config.dataSources.automations, job);
-              button.textContent = 'Queued';
-            } catch {
-              button.textContent = 'Failed';
-            } finally {
-              setTimeout(() => { button.disabled = false; button.textContent = 'Run'; }, 1800);
-            }
-          });
-          li.append(button);
-        }
+        const li = listItem(job.name, job.status || 'ready');
+        const button = document.createElement('button');
+        button.className = 'mini-button';
+        button.type = 'button';
+        button.textContent = 'Run';
+        button.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          button.disabled = true;
+          button.textContent = '...';
+          try {
+            await executeAutomation(job);
+            button.textContent = 'Queued';
+          } catch {
+            button.textContent = 'Failed';
+          } finally {
+            setTimeout(() => { button.disabled = false; button.textContent = 'Run'; }, 1800);
+          }
+        });
+        li.append(button);
         this.list.append(li);
       });
     } catch {
@@ -145,13 +164,13 @@ export class ActivityWidget extends Widget {
     this.list.className = 'widget-list';
     root.append(this.list);
     this.updateData();
-    this.every(() => this.updateData(), this.dashboard.config.dataSources.activity?.refreshMs || 30000);
+    this.every(() => this.updateData(), 30000);
     return root;
   }
 
   async updateData() {
     try {
-      const { items } = await fetchActivity(this.dashboard.config.dataSources.activity || {});
+      const { items } = await fetchActivity();
       this.list.replaceChildren();
       if (!items.length) this.list.append(emptyState('No activity available.'));
       items.slice(0, 8).forEach((entry) => {
