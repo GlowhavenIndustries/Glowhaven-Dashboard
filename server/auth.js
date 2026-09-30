@@ -63,13 +63,51 @@ export function parseSessionCookie(req) {
   return value ? decodeURIComponent(value.slice('gh_session='.length)) : '';
 }
 
+export function revokeUserSessions(state, userId) {
+  if (!state.sessions) return;
+  for (const [hash, session] of Object.entries(state.sessions)) {
+    if (session?.userId === userId) {
+      delete state.sessions[hash];
+    }
+  }
+}
+
+export function parseApiKey(req) {
+  const headerKey = req.headers['x-api-key'];
+  if (headerKey) return String(headerKey).trim();
+  const authHeader = req.headers.authorization || '';
+  if (authHeader.startsWith('Bearer gh_ak_')) {
+    return authHeader.slice('Bearer '.length).trim();
+  }
+  return '';
+}
+
 export function sessionUser(state, req) {
+  const apiKeyToken = parseApiKey(req);
+  if (apiKeyToken && Array.isArray(state.apiKeys)) {
+    const keyHash = hashToken(apiKeyToken);
+    const apiKey = state.apiKeys.find((k) => k.keyHash === keyHash);
+    if (apiKey) {
+      apiKey.lastUsedAt = new Date().toISOString();
+      return {
+        id: 'apikey:' + apiKey.id,
+        email: 'apikey:' + apiKey.name,
+        role: apiKey.role,
+        status: 'active',
+        isApiKey: true,
+        apiKeyId: apiKey.id,
+      };
+    }
+  }
+
   cleanupSessions(state);
   const token = parseSessionCookie(req);
   if (!token) return null;
   const session = state.sessions[hashToken(token)];
   if (!session || session.expiresAt <= Date.now()) return null;
-  return state.users.find((user) => user.id === session.userId) || null;
+  const user = state.users.find((u) => u.id === session.userId) || null;
+  if (!user || user.status === 'disabled') return null;
+  return user;
 }
 
 export function csrfToken(state, req) {
@@ -85,9 +123,21 @@ export async function login(state, req, email, password) {
     throw new Error('Valid email and password are required');
   }
 
+  const policy = state.securityPolicy || {};
+  if (policy.enforceSso && Array.isArray(policy.ssoDomains) && policy.ssoDomains.length > 0) {
+    const domain = normalized.split('@')[1];
+    if (policy.ssoDomains.some((d) => d.toLowerCase() === domain)) {
+      throw new Error('Single Sign-On (SSO) is required for ' + domain + '. Please sign in with company SSO.');
+    }
+  }
+
   const user = state.users.find((item) => item.email === normalized);
   if (!user || !verifyPassword(password, user.password)) {
     throw new Error('Invalid credentials');
+  }
+
+  if (user.status === 'disabled') {
+    throw new Error('Account is disabled');
   }
 
   cleanupSessions(state);
@@ -172,6 +222,8 @@ export function requirePermission(state, req, permission) {
 }
 
 export function requireCsrf(state, req) {
+  const user = sessionUser(state, req);
+  if (user?.isApiKey) return;
   const token = req.headers['x-glowhaven-csrf'];
   const expected = csrfToken(state, req);
   if (!token || !expected || token !== expected) {
