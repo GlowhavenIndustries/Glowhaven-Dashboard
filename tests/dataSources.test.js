@@ -7,6 +7,7 @@ import {
   fetchBusinessKpis,
   fetchCalendarEvents,
   fetchGithubProjects,
+  fetchIncidents,
   fetchServerStatus,
   fetchTelemetrySnapshot,
   fetchWeather,
