@@ -18,9 +18,50 @@ function configured() {
 async function discovery() {
   if (!configured()) throw new Error('OIDC is not configured');
   const issuer = issuerUrl();
-  const response = await fetch(issuer + '/.well-known/openid-configuration');
+  const response = await fetch(issuer + '/.well-known/openid-configuration', { redirect: 'error' });
   if (!response.ok) throw new Error('OIDC discovery failed');
-  return response.json();
+  const metadata = await response.json();
+  if (metadata.issuer !== issuer || typeof metadata.authorization_endpoint !== 'string' || typeof metadata.token_endpoint !== 'string' || typeof metadata.userinfo_endpoint !== 'string' || typeof metadata.jwks_uri !== 'string') {
+    throw new Error('OIDC discovery metadata failed validation');
+  }
+  for (const endpoint of [metadata.authorization_endpoint, metadata.token_endpoint, metadata.userinfo_endpoint, metadata.jwks_uri]) {
+    const parsed = new URL(endpoint);
+    if (parsed.protocol !== 'https:') throw new Error('OIDC endpoints must use HTTPS');
+  }
+  return metadata;
+}
+
+async function verifyIdToken(idToken, metadata, expectedNonce) {
+  const parts = String(idToken).split('.');
+  if (parts.length !== 3) throw new Error('OIDC provider returned an invalid ID token');
+  let header;
+  let claims;
+  try {
+    header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  } catch {
+    throw new Error('OIDC ID token is not valid JWT');
+  }
+  const supported = { RS256: 'RSA-SHA256', RS384: 'RSA-SHA384', RS512: 'RSA-SHA512', PS256: 'RSA-SHA256', PS384: 'RSA-SHA384', PS512: 'RSA-SHA512', ES256: 'SHA256', ES384: 'SHA384', ES512: 'SHA512' };
+  if (!supported[header.alg] || !header.kid) throw new Error('OIDC ID token uses an unsupported signing algorithm');
+  const jwksResponse = await fetch(metadata.jwks_uri, { redirect: 'error', headers: { Accept: 'application/json' } });
+  if (!jwksResponse.ok) throw new Error('OIDC JWKS request failed');
+  const jwks = await jwksResponse.json();
+  const jwk = Array.isArray(jwks.keys) ? jwks.keys.find((key) => key.kid === header.kid) : null;
+  if (!jwk) throw new Error('OIDC signing key not found');
+  let publicKey;
+  try { publicKey = crypto.createPublicKey({ key: jwk, format: 'jwk' }); } catch { throw new Error('OIDC signing key is invalid'); }
+  const verifier = crypto.createVerify(supported[header.alg]);
+  verifier.update(parts[0] + '.' + parts[1]);
+  verifier.end();
+  const valid = verifier.verify({ key: publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(parts[2], 'base64url'));
+  if (!valid) throw new Error('OIDC ID token signature validation failed');
+  const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  if (claims.iss !== issuerUrl() || !audience.includes(process.env.OIDC_CLIENT_ID) || claims.nonce !== expectedNonce || claims.email_verified !== true || !claims.exp || Number(claims.exp) <= Math.floor(Date.now() / 1000)) {
+    throw new Error('OIDC ID token claims failed validation');
+  }
+  if (audience.length > 1 && claims.azp !== process.env.OIDC_CLIENT_ID) throw new Error('OIDC ID token authorized party validation failed');
+  return claims;
 }
 
 export function isOidcConfigured() { return configured(); }
@@ -69,16 +110,7 @@ export async function finishOidc(state, code, appState, expectedState = '') {
   const tokens = await tokenResponse.json();
   if (!tokens.access_token) throw new Error('OIDC provider did not return an access token');
   if (!tokens.id_token) throw new Error('OIDC provider did not return an ID token');
-  if (tokens.id_token) {
-    const parts = String(tokens.id_token).split('.');
-    if (parts.length !== 3) throw new Error('OIDC provider returned an invalid ID token');
-    try {
-      const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-      const issuer = issuerUrl();
-      const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-      if (claims.iss !== issuer || !audience.includes(process.env.OIDC_CLIENT_ID) || claims.nonce !== record.nonce || claims.email_verified !== true || !claims.exp || Number(claims.exp) <= Math.floor(Date.now() / 1000)) throw new Error('OIDC ID token claims failed validation');
-    } catch (error) { throw new Error('OIDC ID token claims failed validation'); }
-  }
+  await verifyIdToken(tokens.id_token, metadata, record.nonce);
   const infoResponse = await fetch(metadata.userinfo_endpoint, { headers: { Authorization: 'Bearer ' + tokens.access_token } });
   if (!infoResponse.ok) throw new Error('OIDC userinfo request failed');
   const claims = await infoResponse.json();
