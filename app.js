@@ -144,7 +144,7 @@ const DEFAULT_CONFIG = {
   }
 };
 
-const STORAGE_KEY = 'glowhaven-dashboard-v3';
+const STORAGE_KEY = 'glowhaven-dashboard-v4';
 const registry = {};
 const $ = (id) => document.getElementById(id);
 const clone = (value) => structuredClone(value);
@@ -227,9 +227,8 @@ class Dashboard {
     const source = widgets.findIndex((w) => w.id === sourceId);
     const target = widgets.findIndex((w) => w.id === targetId);
     if (source < 0 || target < 0) return;
+    [widgets[source].position, widgets[target].position] = [widgets[target].position, widgets[source].position];
     [widgets[source], widgets[target]] = [widgets[target], widgets[source]];
-    const positions = widgets.map((w) => w.position);
-    widgets.forEach((widget, index) => { widget.position = positions[index]; });
     this.render();
     this.persist();
   }
@@ -344,9 +343,9 @@ async function init() {
   dashboard.render();
   telemetry.subscribe((data) => {
     if (data?.metrics) {
-      $('metricAvailability').textContent = data.metrics.availability || '—';
-      $('metricLatency').textContent = data.metrics.latency || '—';
-      $('metricAlerts').textContent = data.metrics.alerts || '—';
+      $('metricAvailability').textContent = data.metrics.availability || 'N/A';
+      $('metricLatency').textContent = data.metrics.latency || 'N/A';
+      $('metricAlerts').textContent = data.metrics.alerts || 'N/A';
     }
   });
   telemetry.start();
@@ -405,10 +404,12 @@ async function init() {
     config.dataSources.github.token = $('settingsGithubToken').value.trim();
 
     const weather = config.dataSources.weather.openMeteo;
+    const lat = Number($('settingsLat').value);
+    const lon = Number($('settingsLon').value);
     weather.location = {
       city: $('settingsCity').value.trim(),
-      lat: Number($('settingsLat').value) || 0,
-      lon: Number($('settingsLon').value) || 0
+      lat: Number.isFinite(lat) ? lat : weather.location.lat,
+      lon: Number.isFinite(lon) ? lon : weather.location.lon
     };
 
     config.dataSources.kpi.endpoint = $('settingsKpi').value.trim();
