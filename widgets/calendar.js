@@ -1,5 +1,22 @@
-import { Widget } from '../app.js';import { fetchCalendarEvents } from '../dataSources.js';
-export default class CalendarWidget extends Widget{
- renderContent(){const w=document.createElement('div');w.className='widget-content';this.date=document.createElement('div');this.date.className='widget-stat';this.list=document.createElement('ul');this.list.className='widget-list';w.append(this.date,this.list);this.updateData();this.interval=setInterval(()=>this.updateData(),this.dashboard.config.dataSources.calendar.refreshMs||300000);return w}
- async updateData(){this.date.textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});try{const events=await fetchCalendarEvents(this.dashboard.config.dataSources.calendar);this.list.replaceChildren(...(events.length?events.map(e=>{const li=document.createElement('li');li.textContent=`${e.title}${e.time?' · '+e.time:''}`;return li;}):[Object.assign(document.createElement('li'),{textContent:'No upcoming activity'})]));}catch{this.list.replaceChildren(Object.assign(document.createElement('li'),{textContent:'Calendar unavailable'}));}}
+import { Widget } from '../app.js';
+import { fetchCalendarEvents } from '../dataSources.js';
+
+export default class CalendarWidget extends Widget {
+  renderContent() {
+    const root = document.createElement('div'); root.className = 'widget-content';
+    this.date = document.createElement('div'); this.date.className = 'widget-stat';
+    this.list = document.createElement('ul'); this.list.className = 'widget-list';
+    root.append(this.date, this.list);
+    this.updateData(); this.every(() => this.updateData(), 300000);
+    return root;
+  }
+  async updateData() {
+    this.date.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    try {
+      const events = await fetchCalendarEvents();
+      this.list.replaceChildren(...(events.length ? events.map((event) => {
+        const li = document.createElement('li'); li.textContent = event.title + (event.time ? ' · ' + new Date(event.time).toLocaleString() : ''); return li;
+      }) : [Object.assign(document.createElement('li'), { textContent: 'No scheduled events' })]));
+    } catch { this.list.replaceChildren(Object.assign(document.createElement('li'), { textContent: 'Calendar unavailable' })); }
+  }
 }
