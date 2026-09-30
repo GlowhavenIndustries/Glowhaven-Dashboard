@@ -177,3 +177,50 @@ describe('data source providers', () => {
     assert.equal(weather.conditions, 'Clear · 50% humidity');
   });
 });
+
+describe('company adapter fallbacks', () => {
+  it('does not invent a service when none are configured', async () => {
+    const health = await fetchServerStatus({ endpoints: [] });
+    assert.equal(health.uptime, 'Not configured');
+    assert.equal(health.services.length, 0);
+  });
+
+  it('uses configured KPI metrics without an endpoint', async () => {
+    const kpis = await fetchBusinessKpis({
+      metrics: [{ label: 'Revenue', value: '$42k', change: '+8%' }],
+    });
+    assert.equal(kpis.metrics[0].label, 'Revenue');
+    assert.equal(kpis.metrics[0].value, '$42k');
+    assert.equal(kpis.metrics[0].change, '+8%');
+  });
+
+  it('returns configured incidents and automations', async () => {
+    const incidents = await fetchIncidents({
+      incidents: [{ id: '1', title: 'API latency', severity: 'high', status: 'open' }],
+    });
+    const automations = await fetchAutomations({
+      automations: [{ id: '2', name: 'Restart worker', status: 'ready' }],
+    });
+    assert.equal(incidents.incidents[0].title, 'API latency');
+    assert.equal(automations.automations[0].name, 'Restart worker');
+  });
+
+  it('does not use default repositories for a new company', async () => {
+    const projects = await fetchGithubProjects({ repositories: [] });
+    assert.equal(projects.summary, 'Not configured');
+    assert.equal(projects.items.length, 0);
+  });
+
+  it('executes an automation through the configured endpoint', async () => {
+    mockFetch(async (url, options) => {
+      assert.equal(String(url), 'https://company.example/automation');
+      assert.equal(options.method, 'POST');
+      return response({ accepted: true });
+    });
+    const result = await executeAutomation(
+      { endpoint: 'https://company.example/automation', retries: 0 },
+      { id: 'job-1', name: 'Restart worker' },
+    );
+    assert.equal(result.accepted, true);
+  });
+});
