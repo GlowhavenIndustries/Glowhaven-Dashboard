@@ -111,7 +111,13 @@ const DEFAULT_CONFIG = {
   activeRole: 'admin',
   organization: { name: 'Your Company', timezone: 'local' },
   dataSources: {
-    calendar: { provider: 'none', refreshMs: 300000, github: { org: '' } },
+    calendar: {
+      provider: 'none',
+      refreshMs: 300000,
+      github: { org: '' },
+      google: { apiKey: '', calendarId: '' },
+      outlook: { endpoint: '', token: '' }
+    },
     weather: { provider: 'openMeteo', refreshMs: 60000, openMeteo: { units: 'imperial', location: { city: '', lat: null, lon: null } } },
     serverStatus: { refreshMs: 15000, endpoints: [] },
     github: { refreshMs: 60000, token: '', repositories: [] },
@@ -385,6 +391,12 @@ async function init() {
     $('settingsServices').value = (config.dataSources.serverStatus?.endpoints || []).map((entry) => typeof entry === 'string' ? entry : entry.url).filter(Boolean).join('\\n');
     $('settingsRepos').value = (config.dataSources.github?.repositories || []).map((entry) => `${entry.owner}/${entry.repo}`).join('\\n');
     $('settingsGithubToken').value = config.dataSources.github?.token || '';
+    $('settingsCalendarProvider').value = config.dataSources.calendar?.provider || 'none';
+    $('settingsCalendarGithubOrg').value = config.dataSources.calendar?.github?.org || '';
+    $('settingsCalendarId').value = config.dataSources.calendar?.google?.calendarId || '';
+    $('settingsCalendarKey').value = config.dataSources.calendar?.google?.apiKey || '';
+    $('settingsCalendarOutlook').value = config.dataSources.calendar?.outlook?.endpoint || '';
+    $('settingsCalendarOutlookToken').value = config.dataSources.calendar?.outlook?.token || '';
     $('settingsKpi').value = config.dataSources.kpi?.endpoint || '';
     $('settingsIncidents').value = config.dataSources.incidents?.endpoint || '';
     $('settingsAutomations').value = config.dataSources.automations?.endpoint || '';
