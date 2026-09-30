@@ -111,14 +111,14 @@ const DEFAULT_CONFIG = {
   activeRole: 'admin',
   organization: { name: 'Your Company', timezone: 'local' },
   dataSources: {
-    calendar: { provider: 'github', refreshMs: 300000, github: { org: 'GlowhavenIndustries' } },
-    weather: { provider: 'openMeteo', refreshMs: 60000, openMeteo: { units: 'imperial', location: { city: 'Dallas', lat: 32.7767, lon: -96.7970 } } },
+    calendar: { provider: 'none', refreshMs: 300000, github: { org: '' } },
+    weather: { provider: 'openMeteo', refreshMs: 60000, openMeteo: { units: 'imperial', location: { city: '', lat: null, lon: null } } },
     serverStatus: { refreshMs: 15000, endpoints: [] },
-    github: { refreshMs: 60000, token: '', repositories: [{ owner: 'GlowhavenIndustries', repo: 'Glowhaven-Dashboard' }] },
+    github: { refreshMs: 60000, token: '', repositories: [] },
     kpi: { refreshMs: 60000, endpoint: '', token: '', metrics: [] },
     incidents: { refreshMs: 30000, endpoint: '', token: '', incidents: [] },
     automations: { refreshMs: 30000, endpoint: '', token: '', automations: [] },
-    activity: { refreshMs: 30000, provider: 'github', github: { org: 'GlowhavenIndustries' }, endpoint: '', token: '' }
+    activity: { refreshMs: 30000, provider: 'none', github: { org: '' }, endpoint: '', token: '' }
   },
   realtime: { enabled: true, refreshMs: 5000 },
   dashboards: {
