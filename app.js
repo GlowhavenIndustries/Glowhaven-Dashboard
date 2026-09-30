@@ -402,6 +402,7 @@ async function init() {
     config.dataSources.serverStatus.endpoints = services;
     config.dataSources.github.repositories = repositories;
     config.dataSources.github.token = $('settingsGithubToken').value.trim();
+    config.dataSources.activity.token = config.dataSources.github.token;
 
     const weather = config.dataSources.weather.openMeteo;
     const lat = Number($('settingsLat').value);
@@ -412,11 +413,27 @@ async function init() {
       lon: Number.isFinite(lon) ? lon : weather.location.lon
     };
 
+    const calendarProvider = $('settingsCalendarProvider').value;
+    config.dataSources.calendar.provider = calendarProvider;
+    config.dataSources.calendar.github.org = $('settingsCalendarGithubOrg').value.trim();
+    config.dataSources.calendar.google.calendarId = $('settingsCalendarId').value.trim();
+    config.dataSources.calendar.google.apiKey = $('settingsCalendarKey').value.trim();
+    config.dataSources.calendar.outlook.endpoint = $('settingsCalendarOutlook').value.trim();
+    config.dataSources.calendar.outlook.token = $('settingsCalendarOutlookToken').value.trim();
+
     config.dataSources.kpi.endpoint = $('settingsKpi').value.trim();
     config.dataSources.incidents.endpoint = $('settingsIncidents').value.trim();
     config.dataSources.automations.endpoint = $('settingsAutomations').value.trim();
     config.dataSources.activity.endpoint = $('settingsActivity').value.trim();
-    if (config.dataSources.activity.endpoint) config.dataSources.activity.provider = 'http';
+    if (config.dataSources.activity.endpoint) {
+      config.dataSources.activity.provider = 'http';
+    } else if (repositories.length) {
+      config.dataSources.activity.provider = 'github';
+      config.dataSources.activity.github.org = repositories[0].owner;
+    } else {
+      config.dataSources.activity.provider = 'none';
+      config.dataSources.activity.github.org = '';
+    }
 
     dashboard.render();
     dashboard.persist();
@@ -442,12 +459,16 @@ async function init() {
     notify('All modules refreshed');
   });
   document.querySelectorAll('.nav-item').forEach((btn) => btn.addEventListener('click', () => {
+    if (btn.id === 'settingsButton') return;
     document.querySelectorAll('.nav-item').forEach((x) => x.classList.remove('active'));
     btn.classList.add('active');
     dashboard.setView(btn.dataset.view || btn.textContent);
     notify(`${btn.dataset.view || btn.textContent} view selected`);
   }));
-  $('launchButton').addEventListener('click', () => notify('Directive queued locally · ready for execution'));
+  $('launchButton').addEventListener('click', () => {
+    populateSettings();
+    $('settingsDialog').showModal();
+  });
 }
 
 init().catch((error) => {
