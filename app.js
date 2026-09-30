@@ -85,7 +85,7 @@ export class Widget {
 }
 
 const DEFAULT_CONFIG = {
-  version: 3,
+  version: 4,
   theme: 'dark',
   visual: 'neon',
   consoleMode: false,
@@ -96,7 +96,11 @@ const DEFAULT_CONFIG = {
     calendar: { provider: 'github', refreshMs: 300000, github: { org: 'GlowhavenIndustries' } },
     weather: { provider: 'openMeteo', refreshMs: 60000, openMeteo: { units: 'imperial', location: { city: 'Dallas', lat: 32.7767, lon: -96.7970 } } },
     serverStatus: { refreshMs: 15000, endpoints: [] },
-    github: { refreshMs: 60000, token: '', repositories: [{ owner: 'GlowhavenIndustries', repo: 'Glowhaven-Dashboard' }] }
+    github: { refreshMs: 60000, token: '', repositories: [{ owner: 'GlowhavenIndustries', repo: 'Glowhaven-Dashboard' }] },
+    kpi: { refreshMs: 60000, endpoint: '', token: '', metrics: [] },
+    incidents: { refreshMs: 30000, endpoint: '', token: '', incidents: [] },
+    automations: { refreshMs: 30000, endpoint: '', token: '', automations: [] },
+    activity: { refreshMs: 30000, provider: 'github', github: { org: 'GlowhavenIndustries' }, endpoint: '', token: '' }
   },
   realtime: { enabled: true, refreshMs: 5000 },
   dashboards: {
@@ -131,7 +135,10 @@ function mergeConfig(base, patch = {}) {
   return {
     ...base, ...patch,
     organization: { ...base.organization, ...patch.organization },
-    dataSources: { ...base.dataSources, ...patch.dataSources },
+    dataSources: Object.fromEntries(Object.keys(base.dataSources).map((key) => [
+      key,
+      { ...(base.dataSources[key] || {}), ...(patch.dataSources?.[key] || {}) }
+    ])),
     realtime: { ...base.realtime, ...patch.realtime },
     dashboards: patch.dashboards || base.dashboards
   };
@@ -180,6 +187,35 @@ class Dashboard {
   get activeDashboard() { return this.config.dashboards[this.config.activeDashboardId] || this.config.dashboards.operations; }
   get canEdit() { return this.config.activeRole === 'admin' && this.activeDashboard.role === 'admin'; }
 
+  get viewTypes() {
+    return {
+      Overview: null,
+      Automations: ['automations'],
+      Workflow: ['activity', 'githubProjects', 'calendar'],
+      Devices: ['serverStatus', 'weather'],
+      Analytics: ['kpi', 'activity'],
+      Settings: []
+    }[this.view || 'Overview'];
+  }
+
+  setView(view) {
+    this.view = view;
+    this.render();
+  }
+
+  moveWidget(sourceId, targetId) {
+    if (!this.canEdit || sourceId === targetId) return;
+    const widgets = this.activeDashboard.widgets;
+    const source = widgets.findIndex((w) => w.id === sourceId);
+    const target = widgets.findIndex((w) => w.id === targetId);
+    if (source < 0 || target < 0) return;
+    [widgets[source], widgets[target]] = [widgets[target], widgets[source]];
+    const positions = widgets.map((w) => w.position);
+    widgets.forEach((widget, index) => { widget.position = positions[index]; });
+    this.render();
+    this.persist();
+  }
+
   persist() { this.storage.save(this.config); updateStatus(this); }
 
   render() {
@@ -189,6 +225,7 @@ class Dashboard {
 
     this.activeDashboard.widgets
       .filter((cfg) => cfg.role !== 'admin' || this.config.activeRole === 'admin')
+      .filter((cfg) => !this.viewTypes || this.viewTypes.includes(cfg.type))
       .forEach((cfg) => {
         const Type = registry[cfg.type];
         if (!Type) return;
@@ -280,6 +317,7 @@ async function init() {
   const config = storage.load();
   const telemetry = new Telemetry(config.realtime);
   const dashboard = new Dashboard(config, storage, telemetry);
+  dashboard.view = 'Overview';
 
   document.documentElement.dataset.theme = config.theme;
   document.documentElement.dataset.visual = config.visual;
@@ -335,7 +373,8 @@ async function init() {
   document.querySelectorAll('.nav-item').forEach((btn) => btn.addEventListener('click', () => {
     document.querySelectorAll('.nav-item').forEach((x) => x.classList.remove('active'));
     btn.classList.add('active');
-    notify(`${btn.dataset.view || btn.textContent} workspace selected`);
+    dashboard.setView(btn.dataset.view || btn.textContent);
+    notify(`${btn.dataset.view || btn.textContent} view selected`);
   }));
   $('launchButton').addEventListener('click', () => notify('Directive queued locally · ready for execution'));
 }
