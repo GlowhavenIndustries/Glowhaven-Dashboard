@@ -53,8 +53,8 @@
 <header class="topbar">
   <div><span class="eyebrow">Glowhaven / Operations</span><h1 id="companyName">Company Workspace</h1><p class="muted">Monitor business signals, coordinate work, and operate connected systems from one secured surface.</p></div>
   <div class="top-actions">
-    <label class="search"><span>⌕</span><input id="searchInput" aria-label="Search modules"></label>
-    <button class="pill" id="themeToggle" type="button">Theme</button><button class="pill" id="neonToggle" type="button">Visual</button><button class="pill" id="consoleToggle" type="button">Console</button><button class="pill primary" id="settingsButton" type="button">Company settings</button>
+    <label class="search"><span>⌕</span><input id="searchInput" aria-label="Search modules" placeholder="Search modules... (/)" title="Press '/' to search modules"></label>
+    <button class="pill" id="themeToggle" type="button" aria-pressed="false">Theme</button><button class="pill" id="neonToggle" type="button" aria-pressed="true">Visual</button><button class="pill" id="consoleToggle" type="button" aria-pressed="false">Console</button><button class="pill primary" id="settingsButton" type="button">Company settings</button>
   </div>
 </header>
 
@@ -66,7 +66,7 @@
 <section class="control-panel">
   <label><span>Workspace</span><select id="dashboardSelect"><option value="operations">Operations</option><option value="team">Team</option></select></label>
   <div class="control-status"><span>Access</span><b id="statusRole">viewer</b></div><div class="control-status"><span>Workspace controls</span><b id="statusEdit">View only</b></div>
-  <div class="control-actions"><select id="widgetType"><option value="kpi">Business KPIs</option><option value="incidents">Incident Center</option><option value="automations">Automation Queue</option><option value="activity">Team Activity</option><option value="githubProjects">Release Pipelines</option><option value="serverStatus">Service Health</option><option value="weather">Local Conditions</option><option value="calendar">Calendar</option></select><button class="pill" id="addWidget" type="button">Add module</button></div>
+  <div class="control-actions"><select id="widgetType" aria-label="Select module to add"><option value="kpi">Business KPIs</option><option value="incidents">Incident Center</option><option value="automations">Automation Queue</option><option value="activity">Team Activity</option><option value="githubProjects">Release Pipelines</option><option value="serverStatus">Service Health</option><option value="weather">Local Conditions</option><option value="calendar">Calendar</option></select><button class="pill" id="addWidget" type="button">Add module</button></div>
 </section>
 
 <section class="quick-grid">
