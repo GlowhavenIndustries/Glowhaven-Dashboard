@@ -3,40 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#030508">
-<meta name="description" content="Glowhaven company operations platform">
-<title>Glowhaven | Operations Platform</title>
+<meta name="theme-color" content="#030507">
+<meta name="description" content="Glowhaven secure enterprise company operations platform">
+<title>Glowhaven | Enterprise Command Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="auth-screen" id="authScreen" hidden>
   <section class="auth-card">
-    <div class="brand auth-brand"><div class="brand-mark" aria-hidden="true"></div><div><strong>Glowhaven</strong><span>Operations Platform</span></div></div>
-    <span class="eyebrow">Secure access</span>
-    <h1>Company command center</h1>
-    <p class="muted">Sign in to access your organization's operational workspace.</p>
+    <div class="brand auth-brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div>
+        <strong>Glowhaven</strong>
+        <span>Enterprise Platform</span>
+      </div>
+    </div>
+    <span class="eyebrow">Identity &amp; Access</span>
+    <h1>Company Command Center</h1>
+    <p class="muted">Authenticate to enter your organization's secured operational surface.</p>
     <form id="loginForm">
-      <label><span>Work email</span><input id="loginEmail" type="email" autocomplete="username" required></label>
-      <label><span>Password</span><input id="loginPassword" type="password" autocomplete="current-password" required></label>
-      <button class="pill primary full" type="submit">Sign in</button>
+      <label><span>Work email address</span><input id="loginEmail" type="email" autocomplete="username" placeholder="name@company.com" required></label>
+      <label><span>Password</span><input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••••••" required></label>
+      <button class="pill primary full" type="submit">Sign in to platform</button>
     </form>
     <form id="setupForm" hidden>
-      <label><span>Administrator email</span><input id="setupEmail" type="email" autocomplete="username" required></label>
-      <label><span>Administrator password</span><input id="setupPassword" type="password" autocomplete="new-password" minlength="12" required></label>
-      <label><span>Confirm password</span><input id="setupPasswordConfirm" type="password" autocomplete="new-password" minlength="12" required></label>
-      <button class="pill primary full" type="submit">Create secure workspace</button>
+      <label><span>Administrator email</span><input id="setupEmail" type="email" autocomplete="username" placeholder="admin@company.com" required></label>
+      <label><span>Administrator password</span><input id="setupPassword" type="password" autocomplete="new-password" minlength="12" placeholder="At least 12 characters" required></label>
+      <label><span>Confirm password</span><input id="setupPasswordConfirm" type="password" autocomplete="new-password" minlength="12" placeholder="Confirm password" required></label>
+      <button class="pill primary full" type="submit">Initialize company workspace</button>
     </form>
-    <button class="pill full" id="ssoButton" type="button" hidden>Continue with company SSO</button>
+    <button class="pill full" id="ssoButton" type="button" hidden>Continue with SSO</button>
   </section>
 </div>
 
 <div class="app-shell" id="appShell" hidden>
 <aside class="sidebar">
-  <div class="brand"><div class="brand-mark" aria-hidden="true"></div><div><strong>Glowhaven</strong><span>Operations Platform</span></div></div>
-  <nav class="nav" aria-label="Primary">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <div>
+      <strong>Glowhaven</strong>
+      <span>Operations Platform</span>
+    </div>
+  </div>
+  <nav class="nav" aria-label="Primary Navigation">
     <button class="nav-item active" data-view="Overview">Overview</button>
     <button class="nav-item" data-view="Automations">Automations</button>
     <button class="nav-item" data-view="Workflow">Workflow</button>
@@ -45,36 +57,101 @@
     <button class="nav-item" data-view="Analytics">Analytics</button>
   </nav>
   <div class="sidebar-bottom">
-    <div class="sidebar-card"><span class="eyebrow">Organization</span><strong id="statusOrg">Company Workspace</strong><span>Protected operational environment</span></div>
-    <div class="user-card"><div><strong id="userEmail">Account</strong><span id="userRole">viewer</span></div><button class="icon-button" id="logoutButton" type="button" aria-label="Sign out">↪</button></div>
+    <div class="sidebar-card">
+      <span class="eyebrow">Scope</span>
+      <strong id="statusOrg">Company Workspace</strong>
+      <span>Secured Environment</span>
+    </div>
+    <div class="user-card">
+      <div>
+        <strong id="userEmail">Account</strong>
+        <span id="userRole">viewer</span>
+      </div>
+      <button class="icon-button" id="logoutButton" type="button" aria-label="Sign out" title="Sign out">↪</button>
+    </div>
   </div>
 </aside>
 
 <main class="main">
 <header class="topbar">
-  <div><span class="eyebrow">Glowhaven / Operations</span><h1 id="companyName">Company Workspace</h1><p class="muted">Monitor business signals, coordinate work, and operate connected systems from one secured surface.</p></div>
+  <div>
+    <span class="eyebrow">Glowhaven / Command Center</span>
+    <h1 id="companyName">Company Workspace</h1>
+    <p class="muted">Monitor operational signals, coordinate workflows, and operate connected enterprise systems.</p>
+  </div>
   <div class="top-actions">
-    <label class="search"><span>⌕</span><input id="searchInput" aria-label="Search modules" placeholder="Search modules... (/)" title="Press '/' to search modules or Ctrl+K for Command Palette"></label>
+    <label class="search">
+      <span>⌕</span>
+      <input id="searchInput" aria-label="Search modules" placeholder="Filter modules... (/)" title="Press '/' to focus search or Ctrl+K for Command Palette">
+    </label>
     <button class="pill gold" id="cmdTriggerBtn" type="button" title="Command Palette (Ctrl+K)">⌘K</button>
-    <button class="pill" id="themeToggle" type="button" aria-pressed="false">Theme</button><button class="pill" id="neonToggle" type="button" aria-pressed="true">Visual</button><button class="pill" id="consoleToggle" type="button" aria-pressed="false">Console</button><button class="pill primary" id="settingsButton" type="button">Company settings</button>
+    <button class="pill" id="themeToggle" type="button" aria-pressed="false">Theme</button>
+    <button class="pill" id="neonToggle" type="button" aria-pressed="true">Visual</button>
+    <button class="pill" id="consoleToggle" type="button" aria-pressed="false">Console</button>
+    <button class="pill primary" id="settingsButton" type="button">Company settings</button>
   </div>
 </header>
 
 <section class="hero-card">
-  <div class="hero-copy"><span class="eyebrow">Executive pulse</span><h2>Know what needs attention, then act.</h2><p class="muted">Live service telemetry, business integrations, incidents, workflows, and team signals in one workspace.</p><div class="hero-actions"><button class="pill primary" id="refreshAll" type="button">Refresh workspace</button><span class="status-pill positive">Authenticated</span><span class="status-pill gold-badge" id="auditStatusPill">Audit Chain Verified</span></div></div>
-  <div class="hero-metrics"><div><span>Availability</span><strong id="metricAvailability">Not configured</strong></div><div><span>Latency</span><strong id="metricLatency">0ms</strong></div><div><span>Alerts</span><strong id="metricAlerts">0 open</strong></div><div><span>Mode</span><strong id="metricMode">GLOW</strong></div></div>
+  <div class="hero-copy">
+    <span class="eyebrow">Operational Telemetry</span>
+    <h2>Real-time system health and signals.</h2>
+    <p class="muted">Live telemetry stream across service endpoints, automated queues, active incidents, and team workflows.</p>
+    <div class="hero-actions">
+      <button class="pill primary" id="refreshAll" type="button">Refresh telemetry</button>
+      <span class="status-pill positive">Authenticated</span>
+      <span class="status-pill gold-badge" id="auditStatusPill">Audit Chain Verified</span>
+    </div>
+  </div>
+  <div class="hero-metrics">
+    <div>
+      <span>Availability</span>
+      <strong id="metricAvailability">Not configured</strong>
+    </div>
+    <div>
+      <span>Avg Latency</span>
+      <strong id="metricLatency">0ms</strong>
+    </div>
+    <div>
+      <span>Active Alerts</span>
+      <strong id="metricAlerts">0 open</strong>
+    </div>
+    <div>
+      <span>Display Mode</span>
+      <strong id="metricMode">GLOW</strong>
+    </div>
+  </div>
 </section>
 
 <section class="control-panel">
-  <label><span>Workspace</span><select id="dashboardSelect">
-    <option value="operations">Operations Center</option>
-    <option value="team">Team Collaboration</option>
-    <option value="devops">DevOps &amp; Infrastructure</option>
-    <option value="security">Security &amp; Compliance</option>
-  </select></label>
-  <div class="control-status"><span>Access</span><b id="statusRole">viewer</b></div><div class="control-status"><span>Workspace controls</span><b id="statusEdit">View only</b></div>
+  <label>
+    <span>Workspace Layout</span>
+    <select id="dashboardSelect">
+      <option value="operations">Operations Center</option>
+      <option value="team">Team Collaboration</option>
+      <option value="devops">DevOps &amp; Infrastructure</option>
+      <option value="security">Security &amp; Compliance</option>
+    </select>
+  </label>
+  <div class="control-status">
+    <span>User Role</span>
+    <b id="statusRole">viewer</b>
+  </div>
+  <div class="control-status">
+    <span>Permissions</span>
+    <b id="statusEdit">View only</b>
+  </div>
   <div class="control-actions">
-    <select id="widgetType" aria-label="Select module to add"><option value="kpi">Business KPIs</option><option value="incidents">Incident Center</option><option value="automations">Automation Queue</option><option value="activity">Team Activity</option><option value="githubProjects">Release Pipelines</option><option value="serverStatus">Service Health</option><option value="weather">Local Conditions</option><option value="calendar">Calendar</option></select>
+    <select id="widgetType" aria-label="Select module to add">
+      <option value="kpi">Business KPIs</option>
+      <option value="incidents">Incident Center</option>
+      <option value="automations">Automation Queue</option>
+      <option value="activity">Team Activity</option>
+      <option value="githubProjects">Release Pipelines</option>
+      <option value="serverStatus">Service Health</option>
+      <option value="weather">Local Conditions</option>
+      <option value="calendar">Calendar</option>
+    </select>
     <button class="pill" id="addWidget" type="button">Add module</button>
     <button class="pill" id="exportLayoutBtn" type="button" title="Export Workspace Layout JSON">Export Layout</button>
     <label class="pill file-pill" title="Import Workspace Layout JSON">
@@ -85,29 +162,171 @@
 </section>
 
 <section class="quick-grid">
-  <article><span class="eyebrow">Security</span><h3>Server-side credentials</h3><p class="muted">API credentials are stored encrypted on the application server, never in browser workspace state.</p></article>
-  <article><span class="eyebrow">Control</span><h3>Role-aware operations</h3><p class="muted">Management actions require authenticated server permissions and CSRF protection.</p></article>
-  <article><span class="eyebrow">Traceability</span><h3>Audited operations</h3><p class="muted">Administrative and automation actions are written to a tamper-evident audit trail.</p></article>
+  <article>
+    <span class="eyebrow">Security Policy</span>
+    <h3>Encrypted Secret Storage</h3>
+    <p class="muted">Integration credentials are encrypted on the backend with master key AES-256-GCM, isolated from client state.</p>
+  </article>
+  <article>
+    <span class="eyebrow">Access Control</span>
+    <h3>Role Authorization</h3>
+    <p class="muted">Mutating requests enforce server-side RBAC validation and anti-CSRF token verification.</p>
+  </article>
+  <article>
+    <span class="eyebrow">Compliance</span>
+    <h3>Tamper-Evident Audit</h3>
+    <p class="muted">Administrative and automation events are recorded into a cryptographic hash chain log.</p>
+  </article>
 </section>
 
-<section class="widget-area"><div class="section-header"><div><span class="eyebrow">Workspace</span><h2>Operational modules</h2></div><span class="muted">Search, organize, and extend your workspace</span></div><div class="widget-grid" id="widgetGrid"></div></section>
+<section class="widget-area">
+  <div class="section-header">
+    <div>
+      <span class="eyebrow">Active Workspace</span>
+      <h2>Operational Modules</h2>
+    </div>
+    <span class="muted">Reorder, search, and configure workspace modules</span>
+  </div>
+  <div class="widget-grid" id="widgetGrid"></div>
+</section>
 <div class="toast" id="systemToast" role="status" aria-live="polite"></div>
 </main>
 </div>
 
 <dialog class="settings-dialog" id="settingsDialog">
 <form class="settings-card">
-  <div class="section-header"><div><span class="eyebrow">Administration</span><h2>Company settings</h2></div><button class="icon-button" id="settingsCancel" type="button" aria-label="Close">×</button></div>
-  <div class="settings-section"><span class="eyebrow">Organization</span><div class="settings-grid"><label><span>Company name</span><input id="settingsOrg"></label><label><span>Timezone</span><input id="settingsTimezone"></label></div></div>
-  <div class="settings-section"><span class="eyebrow">Weather</span><div class="settings-grid"><label><span>City</span><input id="settingsCity"></label><label><span>Units</span><select id="settingsWeatherUnits"><option value="imperial">Imperial</option><option value="metric">Metric</option></select></label><label><span>Latitude</span><input id="settingsLat" type="number" step="any"></label><label><span>Longitude</span><input id="settingsLon" type="number" step="any"></label></div></div>
-  <div class="settings-section"><span class="eyebrow">Engineering</span><div class="settings-grid"><label class="wide"><span>Service health URLs</span><textarea id="settingsServices" rows="4"></textarea></label><label class="wide"><span>GitHub repositories</span><textarea id="settingsRepos" rows="4"></textarea></label><label class="wide"><span>GitHub token</span><input id="settingsGithubToken" type="password" autocomplete="new-password"></label></div></div>
-  <div class="settings-section"><span class="eyebrow">Business systems</span><div class="settings-grid"><label><span>KPI endpoint</span><input id="settingsKpi" type="url"></label><label><span>Incident endpoint</span><input id="settingsIncidents" type="url"></label><label><span>Automation endpoint</span><input id="settingsAutomations" type="url"></label><label><span>Activity endpoint</span><input id="settingsActivity" type="url"></label></div></div>
-  <div class="settings-section"><span class="eyebrow">Calendar</span><div class="settings-grid"><label><span>Provider</span><select id="settingsCalendarProvider"><option value="none">None</option><option value="github">GitHub</option><option value="google">Google Calendar</option><option value="outlook">Outlook</option></select></label><label><span>GitHub organization</span><input id="settingsCalendarGithubOrg"></label><label><span>Google calendar ID</span><input id="settingsCalendarId"></label><label><span>Calendar endpoint</span><input id="settingsCalendarEndpoint" type="url"></label><label class="wide"><span>Google or Outlook credential</span><input id="settingsCalendarSecret" type="password" autocomplete="new-password"></label></div></div>
-  <div class="settings-section admin-only"><span class="eyebrow">Enterprise Security Policy</span><div class="settings-grid"><label><span>Enforce SSO domains</span><input id="settingsSsoDomains" placeholder="example.com, corp.internal"></label><label class="checkbox-label"><input type="checkbox" id="settingsEnforceSso"><span>Block password sign-in for SSO domains</span></label></div></div>
-  <div class="settings-section admin-only"><span class="eyebrow">API Keys &amp; Service Accounts</span><div class="settings-grid"><label><span>Key Name</span><input id="newKeyName" placeholder="e.g. Jenkins CI Bot"></label><label><span>Role</span><select id="newKeyRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label><div class="inline-action"><button class="pill" id="keyCreateBtn" type="button">Create API Key</button></div></div><div id="newKeyBanner" class="key-banner" hidden></div><ul class="admin-list" id="keyList"></ul></div>
-  <div class="settings-section admin-only"><span class="eyebrow">People</span><div class="settings-grid"><label><span>Email</span><input id="newUserEmail" type="email"></label><label><span>Temporary password</span><input id="newUserPassword" type="password" autocomplete="new-password"></label><label><span>Role</span><select id="newUserRole"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option></select></label><div class="inline-action"><button class="pill" id="userCreate" type="button">Create user</button></div></div><ul class="admin-list" id="userList"></ul></div>
-  <div class="settings-section admin-only"><div class="section-header"><div><span class="eyebrow">Audit trail &amp; Compliance</span></div><div class="inline-actions"><button class="pill gold" id="auditVerifyBtn" type="button">Verify Hash Chain</button><button class="pill primary" id="auditExportCsvBtn" type="button">Export CSV</button></div></div><label class="search audit-search"><input id="auditSearchInput" placeholder="Filter audit trail logs..."></label><ul class="admin-list" id="auditList"></ul></div>
-  <div class="settings-actions"><button class="pill" id="settingsCancelSecondary" type="button">Close</button><button class="pill primary" id="settingsSave" type="button">Save settings</button></div>
+  <div class="section-header">
+    <div>
+      <span class="eyebrow">Administration</span>
+      <h2>Company Settings &amp; Security Policy</h2>
+    </div>
+    <button class="icon-button" id="settingsCancel" type="button" aria-label="Close settings">×</button>
+  </div>
+
+  <div class="settings-section">
+    <span class="eyebrow">Organization</span>
+    <div class="settings-grid">
+      <label><span>Company Name</span><input id="settingsOrg"></label>
+      <label><span>Timezone</span><input id="settingsTimezone"></label>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <span class="eyebrow">Local Conditions</span>
+    <div class="settings-grid">
+      <label><span>City Name</span><input id="settingsCity"></label>
+      <label><span>Measurement Units</span><select id="settingsWeatherUnits"><option value="imperial">Imperial</option><option value="metric">Metric</option></select></label>
+      <label><span>Latitude</span><input id="settingsLat" type="number" step="any"></label>
+      <label><span>Longitude</span><input id="settingsLon" type="number" step="any"></label>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <span class="eyebrow">Engineering Systems</span>
+    <div class="settings-grid">
+      <label class="wide"><span>Service Health Endpoints (one per line)</span><textarea id="settingsServices" rows="3" placeholder="https://api.example.com/health"></textarea></label>
+      <label class="wide"><span>GitHub Repositories (owner/repo per line)</span><textarea id="settingsRepos" rows="3" placeholder="organization/repository"></textarea></label>
+      <label class="wide"><span>GitHub API Token</span><input id="settingsGithubToken" type="password" autocomplete="new-password" placeholder="ghp_••••••••••••••••••••"></label>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <span class="eyebrow">Business Endpoints</span>
+    <div class="settings-grid">
+      <label><span>KPI Endpoint</span><input id="settingsKpi" type="url" placeholder="https://internal.company.com/api/kpi"></label>
+      <label><span>Incident Endpoint</span><input id="settingsIncidents" type="url" placeholder="https://internal.company.com/api/incidents"></label>
+      <label><span>Automation Endpoint</span><input id="settingsAutomations" type="url" placeholder="https://internal.company.com/api/automations"></label>
+      <label><span>Activity Endpoint</span><input id="settingsActivity" type="url" placeholder="https://internal.company.com/api/activity"></label>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <span class="eyebrow">Calendar Integration</span>
+    <div class="settings-grid">
+      <label><span>Calendar Provider</span>
+        <select id="settingsCalendarProvider">
+          <option value="none">None</option>
+          <option value="github">GitHub Organization</option>
+          <option value="google">Google Calendar</option>
+          <option value="outlook">Outlook / Office 365</option>
+        </select>
+      </label>
+      <label><span>GitHub Organization</span><input id="settingsCalendarGithubOrg" placeholder="organization"></label>
+      <label><span>Google Calendar ID</span><input id="settingsCalendarId" placeholder="calendar-id@group.calendar.google.com"></label>
+      <label><span>Calendar Endpoint</span><input id="settingsCalendarEndpoint" type="url"></label>
+      <label class="wide"><span>Calendar API Token / Credential</span><input id="settingsCalendarSecret" type="password" autocomplete="new-password" placeholder="Credential secret"></label>
+    </div>
+  </div>
+
+  <div class="settings-section admin-only">
+    <span class="eyebrow">Enterprise Security Policy</span>
+    <div class="settings-grid">
+      <label><span>Enforced SSO Domains</span><input id="settingsSsoDomains" placeholder="example.com, corp.internal"></label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="settingsEnforceSso">
+        <span>Block local password authentication for designated SSO domains</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="settings-section admin-only">
+    <span class="eyebrow">API Keys &amp; Service Accounts</span>
+    <div class="settings-grid">
+      <label><span>Key Name / Client Identifier</span><input id="newKeyName" placeholder="e.g. Jenkins CI/CD Bot"></label>
+      <label><span>Access Role</span>
+        <select id="newKeyRole">
+          <option value="viewer">Viewer</option>
+          <option value="operator">Operator</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
+      <div class="inline-action">
+        <button class="pill" id="keyCreateBtn" type="button">Create API Key</button>
+      </div>
+    </div>
+    <div id="newKeyBanner" class="key-banner" hidden></div>
+    <ul class="admin-list" id="keyList"></ul>
+  </div>
+
+  <div class="settings-section admin-only">
+    <span class="eyebrow">User Directory</span>
+    <div class="settings-grid">
+      <label><span>User Email</span><input id="newUserEmail" type="email" placeholder="user@company.com"></label>
+      <label><span>Temporary Password</span><input id="newUserPassword" type="password" autocomplete="new-password" placeholder="At least 12 characters"></label>
+      <label><span>Role</span>
+        <select id="newUserRole">
+          <option value="viewer">Viewer</option>
+          <option value="operator">Operator</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
+      <div class="inline-action">
+        <button class="pill" id="userCreate" type="button">Create user</button>
+      </div>
+    </div>
+    <ul class="admin-list" id="userList"></ul>
+  </div>
+
+  <div class="settings-section admin-only">
+    <div class="section-header">
+      <div>
+        <span class="eyebrow">Audit Trail &amp; Verification</span>
+      </div>
+      <div class="inline-actions">
+        <button class="pill gold" id="auditVerifyBtn" type="button">Verify Hash Chain</button>
+        <button class="pill primary" id="auditExportCsvBtn" type="button">Export CSV</button>
+      </div>
+    </div>
+    <label class="search audit-search">
+      <input id="auditSearchInput" placeholder="Filter audit trail events...">
+    </label>
+    <ul class="admin-list" id="auditList"></ul>
+  </div>
+
+  <div class="settings-actions">
+    <button class="pill" id="settingsCancelSecondary" type="button">Cancel</button>
+    <button class="pill primary" id="settingsSave" type="button">Save company settings</button>
+  </div>
 </form>
 </dialog>
 
