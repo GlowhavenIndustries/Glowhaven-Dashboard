@@ -45,6 +45,7 @@ export async function loadState() {
 
 export async function saveState(state) {
   const sanitized = { ...state };
+  delete sanitized.sessionStore;
   await writeJson(FILES.state, sanitized);
 }
 
